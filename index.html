@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shopping Spending Tracker</title>
+  <meta name="description" content="Single-file shopping spending tracker with groups, lists, barcode scan, analytics, and backup/restore." />
+  <style>
+    :root{
+      --bg: #0f172a;           /* slate-900 */
+      --panel: #111827;        /* gray-900 */
+      --muted: #1f2937;        /* gray-800 */
+      --muted-2: #374151;      /* gray-700 */
+      --text: #e5e7eb;         /* gray-200 */
+      --accent: #8b5cf6;       /* violet-500 */
+      --accent-2:#22d3ee;      /* cyan-400 */
+      --danger:#ef4444;        /* red-500 */
+      --success:#10b981;       /* emerald-500 */
+      --warning:#f59e0b;       /* amber-500 */
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+      background: linear-gradient(135deg, #0b1026, #0a1a2a 35%, #101f3a);
+      color:var(--text);
+    }
+    header{position:sticky; top:0; z-index:5; backdrop-filter: blur(6px);}  
+    .bar{display:flex; align-items:center; gap:.5rem; padding:.75rem; background:rgba(17,24,39,.8); border-bottom:1px solid #263147}
+    .brand{font-weight:700; letter-spacing:.3px}
+    .spacer{flex:1}
+    select, input, button, .btn, .chip, .card{
+      border-radius:.6rem; border:1px solid #263147; background:var(--panel); color:var(--text)
+    }
+    select, input{padding:.55rem .65rem}
+    button, .btn{padding:.55rem .8rem; cursor:pointer}
+    button.primary{background:linear-gradient(180deg, var(--accent), #6d28d9); border-color:#5232d4}
+    button.ghost{background:transparent; border-color:#263147}
+    button.warn{background:linear-gradient(180deg, #ef4444, #b91c1c); border-color:#b91c1c}
+    button:disabled{opacity:.6; cursor:not-allowed}
+    .wrap{max-width:1100px; margin:0 auto; padding:1rem;}
+
+    .toolbar{display:grid; grid-template-columns: 1fr auto; gap: .75rem; align-items:center; margin-top:.5rem}
+    .grouping{display:flex; align-items:center; gap:.5rem; flex-wrap:wrap}
+
+    .grid{display:grid; grid-template-columns: 1.1fr .9fr; gap:1rem; align-items:start; margin-top:1rem}
+    @media (max-width: 960px){ .grid{grid-template-columns: 1fr} }
+
+    .panel{background:rgba(17,24,39,.6); border:1px solid #263147; border-radius:1rem; box-shadow: 0 10px 30px rgba(0,0,0,.35)}
+    .panel h2{margin:0; font-size:1.05rem; padding: .9rem 1rem; border-bottom:1px solid #263147; background:linear-gradient(180deg, rgba(31,41,55,.6), rgba(17,24,39,.7))}
+    .panel .content{padding:1rem}
+
+    .cards{display:grid; grid-template-columns: repeat(3, 1fr); gap:.75rem}
+    @media (max-width:680px){.cards{grid-template-columns:1fr}}
+    .card{padding: .8rem 1rem; background:linear-gradient(180deg, rgba(31,41,55,.6), rgba(17,24,39,.7))}
+    .card .k{font-size:.75rem; color:#9ca3af}
+    .card .v{font-weight:700; font-size:1.1rem}
+
+    .item-form{display:grid; gap:.6rem; grid-template-columns: 2fr 1fr 1fr 1fr; align-items:end}
+    .item-form label{font-size:.8rem; opacity:.8}
+    .item-form input[type="file"]{padding:.35rem}
+    @media (max-width:820px){ .item-form{grid-template-columns:1fr 1fr} }
+
+    .items{display:flex; flex-direction:column; gap:.5rem}
+    .item{display:grid; align-items:center; grid-template-columns: 26px 1fr .9fr .7fr 72px 98px; gap:.5rem; padding:.5rem; background:rgba(17,24,39,.6); border:1px solid #263147; border-radius:.6rem}
+    .item .drag{cursor:grab; text-align:center; opacity:.8}
+    .item img{width:52px; height:52px; object-fit:cover; border-radius:.4rem; border:1px solid #263147}
+    .actions{display:flex; gap:.4rem; justify-content:flex-end}
+    .empty{opacity:.7; text-align:center; padding:1.5rem 0}
+
+    dialog{border:none; border-radius:1rem; padding:0; background:rgba(15,23,42,.98); color:var(--text); width:min(880px, 96vw)}
+    dialog::backdrop{background:rgba(0,0,0,.35)}
+    .modal-head{display:flex; align-items:center; padding: .9rem 1rem; border-bottom:1px solid #263147}
+    .modal-head h3{margin:0; font-size:1rem}
+    .modal-body{padding:1rem}
+    .modal-foot{display:flex; justify-content:flex-end; gap:.5rem; padding: .85rem 1rem; border-top:1px solid #263147}
+
+    .filters{display:grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap:.25rem .75rem; margin:.5rem 0 1rem}
+    @media (max-width:620px){.filters{grid-template-columns:1fr}}
+
+    .chip{display:inline-flex; align-items:center; gap:.4rem; padding:.2rem .5rem; background:#0b1329}
+    .chip .dot{width:.55rem; height:.55rem; border-radius:50%}
+
+    .foot-actions{display:flex; gap:.5rem; flex-wrap:wrap}
+    .muted{color:#9ca3af}
+    .note{font-size:.85rem; color:#9ca3af}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="bar">
+      <div class="brand">🛒 Shopping Spending Tracker</div>
+      <div class="spacer"></div>
+      <button id="openAnalytics" class="ghost">Global Analytics</button>
+      <button id="backupBtn" title="Download backup of your data">Backup</button>
+      <label class="btn" for="restoreFile" title="Restore from backup JSON" style="cursor:pointer">Restore</label>
+      <input id="restoreFile" type="file" accept="application/json" style="display:none" />
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="toolbar panel">
+      <div class="grouping content">
+        <label for="listSelector" class="muted">Current List</label>
+        <select id="listSelector" title="Choose a list (organized by groups)"></select>
+        <button id="newGroup" class="ghost">+ Group</button>
+        <button id="newList" class="ghost">+ List</button>
+        <button id="renameList" class="ghost">Rename</button>
+        <button id="deleteList" class="warn">Delete</button>
+        <span class="spacer"></span>
+        <span class="note">Tip: Lists are organized by Group with <code>&lt;optgroup&gt;</code>. “Ungrouped” shows lists without a group.</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <section class="panel">
+        <h2>Items</h2>
+        <div class="content">
+          <form id="addItemForm" class="item-form">
+            <div>
+              <label>Item name</label>
+              <input id="itemName" required placeholder="e.g., Eggs" />
+            </div>
+            <div>
+              <label>Price</label>
+              <input id="itemPrice" type="number" step="0.01" min="0" required placeholder="0.00" />
+            </div>
+            <div>
+              <label>Qty</label>
+              <input id="itemQty" type="number" min="1" step="1" value="1" required />
+            </div>
+            <div>
+              <label>Photo</label>
+              <input id="itemPhoto" type="file" accept="image/*" />
+            </div>
+            <div style="grid-column: 1 / -1; display:flex; gap:.5rem; align-items:center; flex-wrap:wrap">
+              <button type="submit" class="primary">Add Item</button>
+              <button type="button" id="scanBtn">Scan Barcode</button>
+              <span class="note">Scanning uses your camera (HTTPS required). If a product is found via OpenFoodFacts, we’ll prefill details.</span>
+            </div>
+          </form>
+
+          <div class="items" id="items"></div>
+          <div class="empty" id="emptyMsg" style="display:none">No items yet. Add your first item above 👆</div>
+        </div>
+      </section>
+
+      <aside class="panel">
+        <h2>Live List Analytics</h2>
+        <div class="content">
+          <div class="cards">
+            <div class="card"><div class="k">Total Items</div><div class="v" id="m_totalItems">0</div></div>
+            <div class="card"><div class="k">Total Spent</div><div class="v" id="m_totalSpent">$0.00</div></div>
+            <div class="card"><div class="k">Avg Price / Item</div><div class="v" id="m_avgPrice">$0.00</div></div>
+          </div>
+          <p class="note" style="margin-top:.75rem">Totals update in real-time when you add, edit, delete, or reorder items.</p>
+
+          <div class="foot-actions" style="margin-top:1rem">
+            <button id="assignGroup">Assign to Group</button>
+            <button id="ungroup">Remove from Group</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Edit Item Modal -->
+  <dialog id="editModal">
+    <div class="modal-head"><h3>Edit Item</h3><div class="spacer"></div></div>
+    <div class="modal-body">
+      <form id="editItemForm" class="item-form">
+        <div>
+          <label>Item name</label>
+          <input id="e_name" required />
+        </div>
+        <div>
+          <label>Price</label>
+          <input id="e_price" type="number" step="0.01" min="0" required />
+        </div>
+        <div>
+          <label>Qty</label>
+          <input id="e_qty" type="number" min="1" step="1" required />
+        </div>
+        <div>
+          <label>Replace photo</label>
+          <input id="e_photo" type="file" accept="image/*" />
+        </div>
+        <div style="grid-column:1/-1">
+          <img id="e_preview" alt="Preview" style="max-height:90px; border-radius:.5rem; display:none; border:1px solid #263147"/>
+        </div>
+      </form>
+    </div>
+    <div class="modal-foot">
+      <button id="editCancel" class="ghost">Cancel</button>
+      <button id="editSave" class="primary">Save</button>
+    </div>
+  </dialog>
+
+  <!-- Analytics Modal -->
+  <dialog id="analyticsModal">
+    <div class="modal-head"><h3>Global Analytics</h3><div class="spacer"></div></div>
+    <div class="modal-body">
+      <p class="note">Filter by group and/or list. Chart shows each list’s total spend plotted by its creation date (ordered by createdAt).</p>
+      <div id="filterHost" class="filters"></div>
+      <canvas id="analyticsChart" height="130"></canvas>
+      <div id="summary" style="margin-top:.75rem"></div>
+    </div>
+    <div class="modal-foot">
+      <button id="analyticsClose" class="ghost">Close</button>
+      <button id="applyFilters" class="primary">Apply Filters</button>
+    </div>
+  </dialog>
+
+  <!-- Barcode Scanner Modal -->
+  <dialog id="scanModal">
+    <div class="modal-head"><h3>Scan Barcode</h3><div class="spacer"></div></div>
+    <div class="modal-body">
+      <div id="reader" style="width: 100%"></div>
+      <div id="scanStatus" class="note" style="margin-top:.5rem"></div>
+    </div>
+    <div class="modal-foot">
+      <button id="stopScan" class="ghost">Stop</button>
+    </div>
+  </dialog>
+
+  <!-- External libs via CDN (cached by the inlined Service Worker for offline after first load) -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/html5-qrcode/html5-qrcode.min.js"></script>
+
+  <script>
+    /********************
+     * Utility helpers  *
+     ********************/
+    const $ = sel => document.querySelector(sel);
+    const $$ = sel => Array.from(document.querySelectorAll(sel));
+    const nowISO = () => new Date().toISOString();
+    const fmtMoney = (n) => `$${(Number(n) || 0).toFixed(2)}`;
+    const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Math.random().toString(36).slice(2));
+
+    /********************
+     * Persistence       *
+     ********************/
+    const STORAGE_KEY = 'appData.shopping-tracker.v1';
+
+    function loadData(){
+      try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) }catch(e){ return null }
+    }
+    function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); }
+
+    // default seed
+    let appData = loadData() || {
+      groups: [/* {id, name, createdAt} */],
+      lists: [/* {id, name, groupId|null, createdAt, updatedAt, items:[{id, name, price, qty, imageUrl?, photoBase64?, createdAt, updatedAt}] } */],
+      selectedListId: null
+    };
+
+    // Ensure at least one list exists
+    if(!appData.lists.length){
+      const defaultList = { id: uid(), name: 'My First List', groupId: null, createdAt: nowISO(), updatedAt: nowISO(), items: [] };
+      appData.lists.push(defaultList);
+      appData.selectedListId = defaultList.id;
+      saveData();
+    } else if(!appData.selectedListId){
+      appData.selectedListId = appData.lists[0].id; saveData();
+    }
+
+    function getCurrentList(){ return appData.lists.find(l => l.id === appData.selectedListId); }
+
+    /********************
+     * Group & List UI   *
+     ********************/
+    const listSelector = $('#listSelector');
+
+    function renderListSelector(){
+      const groupsById = Object.fromEntries(appData.groups.map(g => [g.id, g]));
+      const grouped = new Map();
+      // prepare groups
+      appData.groups.forEach(g => grouped.set(g.id, { label: g.name, lists: [] }));
+      // ungrouped bucket = null
+      grouped.set(null, { label: 'Ungrouped', lists: [] });
+
+      appData.lists
+        .slice().sort((a,b)=> new Date(a.createdAt) - new Date(b.createdAt))
+        .forEach(list => {
+          const key = list.groupId ?? null;
+          if(!grouped.has(key)) grouped.set(key, { label: groupsById[key]?.name || 'Ungrouped', lists: [] });
+          grouped.get(key).lists.push(list);
+        });
+
+      // Build select
+      listSelector.innerHTML = '';
+      for(const [gid, bucket] of grouped){
+        if(bucket.lists.length === 0) continue; // hide empty groups except show Ungrouped only if it has lists
+        const og = document.createElement('optgroup');
+        og.label = bucket.label;
+        bucket.lists.forEach(list => {
+          const opt = document.createElement('option');
+          opt.value = list.id; opt.textContent = list.name; if(list.id === appData.selectedListId) opt.selected = true; og.appendChild(opt);
+        });
+        listSelector.appendChild(og);
+      }
+    }
+
+    listSelector.addEventListener('change', () => {
+      appData.selectedListId = listSelector.value; saveData(); renderItems(); updateMetrics();
+    });
+
+    $('#newGroup').addEventListener('click', () => {
+      const name = prompt('New group name:');
+      if(!name) return;
+      appData.groups.push({ id: uid(), name: name.trim(), createdAt: nowISO() });
+      saveData(); renderListSelector(); buildAnalyticsFilters();
+    });
+
+    $('#newList').addEventListener('click', () => {
+      const name = prompt('New list name:');
+      if(!name) return;
+      const list = { id: uid(), name: name.trim(), groupId: null, createdAt: nowISO(), updatedAt: nowISO(), items: [] };
+      appData.lists.push(list);
+      appData.selectedListId = list.id; saveData(); renderListSelector(); renderItems(); updateMetrics(); buildAnalyticsFilters();
+    });
+
+    $('#renameList').addEventListener('click', () => {
+      const list = getCurrentList(); if(!list) return;
+      const name = prompt('Rename list:', list.name);
+      if(!name) return;
+      list.name = name.trim(); list.updatedAt = nowISO(); saveData(); renderListSelector(); buildAnalyticsFilters(); updateAnalyticsChart();
+    });
+
+    $('#deleteList').addEventListener('click', () => {
+      const list = getCurrentList(); if(!list) return;
+      if(!confirm(`Delete list “${list.name}” and all its items?`)) return;
+      appData.lists = appData.lists.filter(l => l.id !== list.id);
+      if(!appData.lists.length){ // ensure at least one
+        const nl = { id: uid(), name: 'New List', groupId: null, createdAt: nowISO(), updatedAt: nowISO(), items: [] };
+        appData.lists.push(nl); appData.selectedListId = nl.id;
+      } else {
+        appData.selectedListId = appData.lists[0].id;
+      }
+      saveData(); renderListSelector(); renderItems(); updateMetrics(); buildAnalyticsFilters(); updateAnalyticsChart();
+    });
+
+    $('#assignGroup').addEventListener('click', () => {
+      const list = getCurrentList(); if(!list) return;
+      if(!appData.groups.length){ alert('Create a group first.'); return; }
+      const name = prompt('Assign to which group? Type exact name.\nAvailable: ' + appData.groups.map(g=>g.name).join(', '));
+      if(!name) return;
+      const g = appData.groups.find(x => x.name.toLowerCase() === name.trim().toLowerCase());
+      if(!g){ alert('No matching group.'); return; }
+      list.groupId = g.id; list.updatedAt = nowISO(); saveData(); renderListSelector(); buildAnalyticsFilters(); updateAnalyticsChart();
+    });
+
+    $('#ungroup').addEventListener('click', () => {
+      const list = getCurrentList(); if(!list) return;
+      list.groupId = null; list.updatedAt = nowISO(); saveData(); renderListSelector(); buildAnalyticsFilters(); updateAnalyticsChart();
+    });
+
+    /********************
+     * Items CRUD        *
+     ********************/
+    const itemsHost = $('#items');
+    const emptyMsg = $('#emptyMsg');
+
+    function renderItems(){
+      const list = getCurrentList();
+      itemsHost.innerHTML = '';
+      if(!list || !list.items.length){ emptyMsg.style.display='block'; return } else { emptyMsg.style.display='none'; }
+      list.items.forEach(item => itemsHost.appendChild(renderItemRow(item)));
+      mountSortable();
+    }
+
+    function renderItemRow(item){
+      const row = document.createElement('div');
+      row.className = 'item'; row.dataset.id = item.id;
+      row.innerHTML = `
+        <div class="drag">☰</div>
+        <div><strong>${escapeHtml(item.name)}</strong></div>
+        <div>${fmtMoney(item.price)} × ${item.qty}</div>
+        <div>${fmtMoney(item.price * item.qty)}</div>
+        <div>${item.photoBase64 || item.imageUrl ? `<img src="${item.photoBase64 || item.imageUrl}" alt="${escapeHtml(item.name)}"/>` : '<span class="muted">No photo</span>'}</div>
+        <div class="actions">
+          <button class="ghost" data-act="edit">Edit</button>
+          <button class="warn" data-act="del">Delete</button>
+        </div>`;
+
+      row.querySelector('[data-act="edit"]').addEventListener('click', ()=> openEdit(item.id));
+      row.querySelector('[data-act="del"]').addEventListener('click', ()=> deleteItem(item.id));
+      return row;
+    }
+
+    function mountSortable(){
+      new Sortable(itemsHost, {
+        animation: 150,
+        handle: '.drag',
+        onEnd: function(evt){
+          const list = getCurrentList();
+          if(!list) return;
+          const ids = $$('#items .item').map(el => el.dataset.id);
+          list.items.sort((a,b)=> ids.indexOf(a.id) - ids.indexOf(b.id));
+          list.updatedAt = nowISO(); saveData(); updateMetrics();
+        }
+      });
+    }
+
+    $('#addItemForm').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const list = getCurrentList(); if(!list) return;
+      const name = $('#itemName').value.trim();
+      const price = Number($('#itemPrice').value);
+      const qty = Math.max(1, parseInt($('#itemQty').value || '1', 10));
+      let photoBase64 = null;
+      const file = $('#itemPhoto').files[0];
+      if(file){ photoBase64 = await fileToBase64(file); }
+
+      const item = { id: uid(), name, price, qty, photoBase64, imageUrl: null, createdAt: nowISO(), updatedAt: nowISO() };
+      list.items.push(item); list.updatedAt = nowISO(); saveData();
+      e.target.reset(); renderItems(); updateMetrics();
+    });
+
+    function deleteItem(id){
+      const list = getCurrentList(); if(!list) return;
+      if(!confirm('Delete this item?')) return;
+      list.items = list.items.filter(i => i.id !== id);
+      list.updatedAt = nowISO(); saveData(); renderItems(); updateMetrics();
+    }
+
+    // Edit modal
+    const editModal = $('#editModal');
+    let editingItemId = null;
+
+    function openEdit(id){
+      const list = getCurrentList(); if(!list) return;
+      const item = list.items.find(i=>i.id===id); if(!item) return;
+      editingItemId = id;
+      $('#e_name').value = item.name;
+      $('#e_price').value = item.price;
+      $('#e_qty').value = item.qty;
+      const img = $('#e_preview');
+      if(item.photoBase64 || item.imageUrl){ img.src = item.photoBase64 || item.imageUrl; img.style.display='inline-block'; } else { img.style.display='none'; }
+      editModal.showModal();
+    }
+
+    $('#editCancel').addEventListener('click', ()=> editModal.close());
+    $('#editSave').addEventListener('click', async ()=>{
+      const list = getCurrentList(); if(!list) return;
+      const item = list.items.find(i=>i.id===editingItemId); if(!item) return;
+      item.name = $('#e_name').value.trim();
+      item.price = Number($('#e_price').value);
+      item.qty = Math.max(1, parseInt($('#e_qty').value || '1', 10));
+      const file = $('#e_photo').files[0];
+      if(file){ item.photoBase64 = await fileToBase64(file); item.imageUrl = null; }
+      item.updatedAt = nowISO(); list.updatedAt = nowISO(); saveData();
+      editModal.close(); renderItems(); updateMetrics();
+      $('#e_photo').value = '';
+    });
+
+    async function fileToBase64(file){
+      return new Promise((resolve,reject)=>{
+        const fr = new FileReader();
+        fr.onload = ()=> resolve(fr.result);
+        fr.onerror = reject; fr.readAsDataURL(file);
+      });
+    }
+
+    function escapeHtml(s){
+      return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+    }
+
+    /********************
+     * Analytics (live)  *
+     ********************/
+    function updateMetrics(){
+      const list = getCurrentList();
+      if(!list){ $('#m_totalItems').textContent='0'; $('#m_totalSpent').textContent='$0.00'; $('#m_avgPrice').textContent='$0.00'; return; }
+      const totalQty = list.items.reduce((s,i)=> s + Number(i.qty||0), 0);
+      const totalSpent = list.items.reduce((s,i)=> s + (Number(i.price||0) * Number(i.qty||0)), 0);
+      const avgPrice = totalQty ? (totalSpent / totalQty) : 0;
+      $('#m_totalItems').textContent = String(totalQty);
+      $('#m_totalSpent').textContent = fmtMoney(totalSpent);
+      $('#m_avgPrice').textContent = fmtMoney(avgPrice);
+    }
+
+    /********************
+     * Global Analytics  *
+     ********************/
+    const analyticsModal = $('#analyticsModal');
+    const openAnalyticsBtn = $('#openAnalytics');
+    const analyticsClose = $('#analyticsClose');
+    const applyFiltersBtn = $('#applyFilters');
+    let chart; let activeFilters = { groups: new Set(), lists: new Set() };
+
+    openAnalyticsBtn.addEventListener('click', ()=>{ buildAnalyticsFilters(); updateAnalyticsChart(); analyticsModal.showModal(); });
+    analyticsClose.addEventListener('click', ()=> analyticsModal.close());
+    applyFiltersBtn.addEventListener('click', ()=> { collectFiltersFromUI(); updateAnalyticsChart(); });
+
+    function buildAnalyticsFilters(){
+      const host = $('#filterHost'); host.innerHTML = '';
+      // Groups
+      const gTitle = document.createElement('div'); gTitle.innerHTML = '<strong>Groups</strong>';
+      host.appendChild(gTitle);
+      appData.groups.forEach(g => host.appendChild(makeFilterRow('group', g.id, g.name, activeFilters.groups.has(g.id))));
+      // Lists
+      const lTitle = document.createElement('div'); lTitle.innerHTML = '<strong>Lists</strong>';
+      host.appendChild(lTitle);
+      appData.lists.forEach(l => host.appendChild(makeFilterRow('list', l.id, l.name, activeFilters.lists.has(l.id))));
+    }
+
+    function makeFilterRow(kind, id, label, checked){
+      const row = document.createElement('label'); row.style.display='flex'; row.style.alignItems='center'; row.style.gap='.5rem';
+      row.innerHTML = `<input type="checkbox" data-kind="${kind}" value="${id}" ${checked? 'checked':''}/> <span>${escapeHtml(label)}</span>`;
+      return row;
+    }
+
+    function collectFiltersFromUI(){
+      activeFilters = { groups: new Set(), lists: new Set() };
+      $$('#filterHost input[type="checkbox"]').forEach(cb => {
+        if(cb.checked){ if(cb.dataset.kind==='group') activeFilters.groups.add(cb.value); else activeFilters.lists.add(cb.value); }
+      });
+    }
+
+    function listIncluded(list){
+      // If no filters selected at all => include everything
+      const noneSelected = !activeFilters.groups.size && !activeFilters.lists.size;
+      if(noneSelected) return true;
+      const inPickedList = activeFilters.lists.has(list.id);
+      const inPickedGroup = list.groupId && activeFilters.groups.has(list.groupId);
+      return inPickedList || inPickedGroup;
+    }
+
+    function updateAnalyticsChart(){
+      const ctx = $('#analyticsChart').getContext('2d');
+      const included = appData.lists.filter(listIncluded).slice().sort((a,b)=> new Date(a.createdAt) - new Date(b.createdAt));
+      const labels = included.map(l => new Date(l.createdAt).toLocaleString());
+      const totals = included.map(l => l.items.reduce((s,i)=> s + (Number(i.price||0)*Number(i.qty||0)), 0));
+
+      if(chart){ chart.destroy(); }
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets: [{ label: 'Total Spend per List (by created date)', data: totals, tension: .25 }] },
+        options: {
+          plugins: { legend: { display: true } },
+          scales: { y: { beginAtZero:true } },
+          responsive: true,
+        }
+      });
+
+      // Summary stats
+      const count = included.length;
+      const sum = totals.reduce((a,b)=>a+b,0);
+      const avg = count? sum / count : 0;
+      const max = totals.length? Math.max(...totals): 0;
+      const min = totals.length? Math.min(...totals): 0;
+      $('#summary').innerHTML = `
+        <div class="cards" style="margin-top:.5rem">
+          <div class="card"><div class="k">Lists Included</div><div class="v">${count}</div></div>
+          <div class="card"><div class="k">Combined Spend</div><div class="v">${fmtMoney(sum)}</div></div>
+          <div class="card"><div class="k">Average per List</div><div class="v">${fmtMoney(avg)}</div></div>
+          <div class="card"><div class="k">Highest List Total</div><div class="v">${fmtMoney(max)}</div></div>
+          <div class="card"><div class="k">Lowest List Total</div><div class="v">${fmtMoney(min)}</div></div>
+        </div>`;
+    }
+
+    /********************
+     * Backup / Restore  *
+     ********************/
+    $('#backupBtn').addEventListener('click', ()=>{
+      const blob = new Blob([JSON.stringify(appData, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `shopping-tracker-backup-${new Date().toISOString().slice(0,19)}.json`;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    $('#restoreFile').addEventListener('change', async (e)=>{
+      const file = e.target.files[0]; if(!file) return; 
+      try{
+        const text = await file.text();
+        const incoming = JSON.parse(text);
+        mergeImport(incoming);
+        saveData(); renderListSelector(); renderItems(); updateMetrics(); buildAnalyticsFilters(); updateAnalyticsChart();
+        alert('Import complete (merged).');
+      }catch(err){
+        console.error(err); alert('Invalid JSON file.');
+      }finally{ e.target.value = '' }
+    });
+
+    function mergeImport(incoming){
+      if(!incoming || typeof incoming !== 'object') return;
+      const nameTaken = (arr, name) => arr.some(x => x.name === name);
+      // Groups
+      const idMapGroups = new Map();
+      (incoming.groups || []).forEach(g => {
+        let name = g.name || 'Imported Group';
+        while(nameTaken(appData.groups, name)) name = name + ' (Imported)';
+        const newG = { id: uid(), name, createdAt: g.createdAt || nowISO() };
+        idMapGroups.set(g.id, newG.id); appData.groups.push(newG);
+      });
+      // Lists
+      (incoming.lists || []).forEach(l => {
+        let name = l.name || 'Imported List';
+        while(nameTaken(appData.lists, name)) name = name + ' (Imported)';
+        const newL = { id: uid(), name, groupId: l.groupId ? (idMapGroups.get(l.groupId) || null) : null, createdAt: l.createdAt || nowISO(), updatedAt: l.updatedAt || nowISO(), items: [] };
+        // Items
+        (l.items||[]).forEach(i => {
+          newL.items.push({ id: uid(), name: i.name || 'Item', price: Number(i.price||0), qty: Math.max(1, Number(i.qty||1)), photoBase64: i.photoBase64||null, imageUrl: i.imageUrl||null, createdAt: i.createdAt || nowISO(), updatedAt: i.updatedAt || nowISO() });
+        });
+        appData.lists.push(newL);
+      });
+    }
+
+    /********************
+     * Barcode scanning  *
+     ********************/
+    const scanModal = $('#scanModal');
+    const scanBtn = $('#scanBtn');
+    const stopScanBtn = $('#stopScan');
+    let html5QrcodeScanner = null; let inProgress = false;
+
+    scanBtn.addEventListener('click', () => {
+      $('#scanStatus').textContent = 'Initializing camera…';
+      scanModal.showModal();
+      startScanner();
+    });
+
+    stopScanBtn.addEventListener('click', ()=> stopScanner());
+
+    async function startScanner(){
+      try{
+        const readerDivId = 'reader';
+        html5QrcodeScanner = new Html5Qrcode(readerDivId);
+        const devices = await Html5Qrcode.getCameras();
+        const cameraId = devices?.[0]?.id; // default first camera
+        if(!cameraId) throw new Error('No camera found');
+        await html5QrcodeScanner.start(
+          { deviceId: { exact: cameraId } },
+          { fps: 10, qrbox: 250 },
+          (decodedText) => {
+            if(inProgress) return; inProgress = true;
+            $('#scanStatus').textContent = `Scanned: ${decodedText} — looking up…`;
+            fetchOpenFoodFacts(decodedText).finally(()=>{ inProgress = false; });
+          },
+          (errorMessage) => { /* ignore scan errors */ }
+        );
+        $('#scanStatus').textContent = 'Point your camera at a barcode…';
+      }catch(err){
+        console.error(err);
+        $('#scanStatus').textContent = 'Unable to access camera. Make sure you are using HTTPS and granted permission.';
+      }
+    }
+
+    async function fetchOpenFoodFacts(barcode){
+      try{
+        const url = `https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(barcode)}.json`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if(data?.status === 1){
+          const p = data.product || {};
+          // Prefill the add-item form (non-destructive)
+          $('#itemName').value = p.product_name || p.generic_name || $('#itemName').value;
+          if(p.image_front_url){
+            // Store as remote imageURL unless user uploads a file
+            latestScannedImageUrl = p.image_front_url; // temp, referenced when adding item
+            $('#scanStatus').textContent = `Found: ${$('#itemName').value}`;
+          }else{
+            latestScannedImageUrl = null; $('#scanStatus').textContent = 'Found product but no image.';
+          }
+          // optional: auto focus on price field
+          $('#itemPrice').focus();
+        }else{
+          $('#scanStatus').textContent = 'No product found for this barcode. You can still enter manually.';
+        }
+      }catch(err){
+        console.error(err); $('#scanStatus').textContent = 'Lookup failed (offline or API error). Try again or enter manually.';
+      }
+    }
+
+    let latestScannedImageUrl = null;
+
+    // On submit, if user didn’t upload a photo and we have scanned image, attach it
+    $('#addItemForm').addEventListener('submit', ()=>{
+      const list = getCurrentList(); if(!list) return;
+      const last = list.items[list.items.length-1];
+      if(last && !last.photoBase64 && latestScannedImageUrl && !last.imageUrl){
+        last.imageUrl = latestScannedImageUrl; saveData(); renderItems(); updateMetrics();
+      }
+      latestScannedImageUrl = null;
+    }, { capture:true });
+
+    async function stopScanner(){
+      try{ await html5QrcodeScanner?.stop(); }catch(e){}
+      try{ await html5QrcodeScanner?.clear(); }catch(e){}
+      html5QrcodeScanner = null; inProgress = false; scanModal.close();
+    }
+
+    /********************
+     * Service Worker    *
+     * (offline-after-first-load caching for this single file + CDNs)
+     ********************/
+    if('serviceWorker' in navigator){
+      const swCode = `
+        const CACHE = 'shopping-tracker-cache-v1';
+        const toCache = [ location.href,
+          'https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js',
+          'https://cdn.jsdelivr.net/npm/chart.js',
+          'https://unpkg.com/html5-qrcode/html5-qrcode.min.js'
+        ];
+        self.addEventListener('install', event => {
+          event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(toCache)).catch(()=>{}));
+          self.skipWaiting();
+        });
+        self.addEventListener('activate', event => { event.waitUntil(self.clients.claim()); });
+        self.addEventListener('fetch', event => {
+          event.respondWith(
+            caches.match(event.request).then(resp => resp || fetch(event.request).then(r => {
+              const copy = r.clone(); caches.open(CACHE).then(cache => cache.put(event.request, copy)).catch(()=>{}); return r;
+            }).catch(()=>resp))
+          );
+        });`;
+      const blob = new Blob([swCode], {type:'text/javascript'});
+      const swUrl = URL.createObjectURL(blob);
+      navigator.serviceWorker.register(swUrl).catch(()=>{});
+    }
+
+    /********************
+     * Init              *
+     ********************/
+    function init(){ renderListSelector(); renderItems(); updateMetrics(); }
+    init();
+  </script>
+</body>
+</html>
