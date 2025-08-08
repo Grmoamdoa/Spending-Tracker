@@ -2,10 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>Shopping Spending Tracker</title>
-  <meta name="description" content="Single-file shopping spending tracker with groups, lists, barcode scan, analytics, and backup/restore." />
+  <meta name="description" content="Single-file shopping spending tracker with groups, lists, barcode scan, analytics, backup/restore. Mobile-first." />
   <style>
+    /* ===============
+       MOBILE-FIRST UI
+       =============== */
     :root{
       --bg: #0f172a;           /* slate-900 */
       --panel: #111827;        /* gray-900 */
@@ -17,73 +20,92 @@
       --danger:#ef4444;        /* red-500 */
       --success:#10b981;       /* emerald-500 */
       --warning:#f59e0b;       /* amber-500 */
+      --radius: 14px;
+      --gap: .75rem;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
       margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
-      background: linear-gradient(135deg, #0b1026, #0a1a2a 35%, #101f3a);
+      background: linear-gradient(160deg, #0b1026, #0a1a2a 35%, #101f3a);
       color:var(--text);
     }
     header{position:sticky; top:0; z-index:5; backdrop-filter: blur(6px);}  
-    .bar{display:flex; align-items:center; gap:.5rem; padding:.75rem; background:rgba(17,24,39,.8); border-bottom:1px solid #263147}
-    .brand{font-weight:700; letter-spacing:.3px}
+    .bar{display:flex; align-items:center; gap:.5rem; padding:.6rem .75rem; background:rgba(17,24,39,.85); border-bottom:1px solid #263147; flex-wrap:wrap}
+    .brand{font-weight:700; letter-spacing:.3px; font-size:1.02rem}
     .spacer{flex:1}
     select, input, button, .btn, .chip, .card{
-      border-radius:.6rem; border:1px solid #263147; background:var(--panel); color:var(--text)
+      border-radius:var(--radius); border:1px solid #263147; background:var(--panel); color:var(--text)
     }
-    select, input{padding:.55rem .65rem}
-    button, .btn{padding:.55rem .8rem; cursor:pointer}
+    select, input{padding:.7rem .75rem; font-size:1rem}
+    button, .btn{padding:.7rem .85rem; cursor:pointer; font-size:1rem}
     button.primary{background:linear-gradient(180deg, var(--accent), #6d28d9); border-color:#5232d4}
     button.ghost{background:transparent; border-color:#263147}
     button.warn{background:linear-gradient(180deg, #ef4444, #b91c1c); border-color:#b91c1c}
     button:disabled{opacity:.6; cursor:not-allowed}
-    .wrap{max-width:1100px; margin:0 auto; padding:1rem;}
+    .wrap{max-width:1100px; margin:0 auto; padding:var(--gap)}
 
-    .toolbar{display:grid; grid-template-columns: 1fr auto; gap: .75rem; align-items:center; margin-top:.5rem}
+    /* TOOLBAR */
+    .toolbar{display:grid; grid-template-columns: 1fr; gap: var(--gap); align-items:center; margin-top:.5rem}
     .grouping{display:flex; align-items:center; gap:.5rem; flex-wrap:wrap}
+    #listSelector{min-width:260px; max-width:100%}
 
-    .grid{display:grid; grid-template-columns: 1.1fr .9fr; gap:1rem; align-items:start; margin-top:1rem}
-    @media (max-width: 960px){ .grid{grid-template-columns: 1fr} }
+    /* MAIN GRID becomes single column on mobile-first, two columns on > 960px */
+    .grid{display:grid; grid-template-columns: 1fr; gap:var(--gap); align-items:start; margin-top:var(--gap)}
+    @media (min-width: 960px){ .grid{grid-template-columns: 1.1fr .9fr} }
 
-    .panel{background:rgba(17,24,39,.6); border:1px solid #263147; border-radius:1rem; box-shadow: 0 10px 30px rgba(0,0,0,.35)}
+    .panel{background:rgba(17,24,39,.6); border:1px solid #263147; border-radius:var(--radius); box-shadow: 0 10px 30px rgba(0,0,0,.35)}
     .panel h2{margin:0; font-size:1.05rem; padding: .9rem 1rem; border-bottom:1px solid #263147; background:linear-gradient(180deg, rgba(31,41,55,.6), rgba(17,24,39,.7))}
-    .panel .content{padding:1rem}
+    .panel .content{padding:var(--gap)}
 
-    .cards{display:grid; grid-template-columns: repeat(3, 1fr); gap:.75rem}
-    @media (max-width:680px){.cards{grid-template-columns:1fr}}
+    /* METRIC CARDS become 2 cols on small screens, 3 on larger */
+    .cards{display:grid; grid-template-columns: repeat(2, 1fr); gap:.6rem}
+    @media (min-width:680px){.cards{grid-template-columns:repeat(3,1fr)}}
     .card{padding: .8rem 1rem; background:linear-gradient(180deg, rgba(31,41,55,.6), rgba(17,24,39,.7))}
-    .card .k{font-size:.75rem; color:#9ca3af}
-    .card .v{font-weight:700; font-size:1.1rem}
+    .card .k{font-size:.8rem; color:#9ca3af}
+    .card .v{font-weight:700; font-size:1.15rem}
 
-    .item-form{display:grid; gap:.6rem; grid-template-columns: 2fr 1fr 1fr 1fr; align-items:end}
-    .item-form label{font-size:.8rem; opacity:.8}
+    /* ITEM FORM becomes two rows on phones */
+    .item-form{display:grid; gap:.6rem; grid-template-columns: 1fr 1fr; align-items:end}
+    .item-form label{font-size:.8rem; opacity:.85}
     .item-form input[type="file"]{padding:.35rem}
-    @media (max-width:820px){ .item-form{grid-template-columns:1fr 1fr} }
+    @media (min-width:820px){ .item-form{grid-template-columns: 2fr 1fr 1fr 1fr} }
 
-    .items{display:flex; flex-direction:column; gap:.5rem}
-    .item{display:grid; align-items:center; grid-template-columns: 26px 1fr .9fr .7fr 72px 98px; gap:.5rem; padding:.5rem; background:rgba(17,24,39,.6); border:1px solid #263147; border-radius:.6rem}
-    .item .drag{cursor:grab; text-align:center; opacity:.8}
-    .item img{width:52px; height:52px; object-fit:cover; border-radius:.4rem; border:1px solid #263147}
+    .items{display:flex; flex-direction:column; gap:.55rem}
+    .item{display:grid; align-items:center; grid-template-columns: 28px 1fr auto; gap:.55rem; padding:.65rem; background:rgba(17,24,39,.6); border:1px solid #263147; border-radius:.9rem}
+    .drag{cursor:grab; text-align:center; opacity:.85}
+    .name{font-weight:700}
+    .unit{display:none; color:#cbd5e1; font-size:.92rem}
+    .total{font-weight:700}
+    .thumb{display:none}
+    .thumb img{width:46px; height:46px; object-fit:cover; border-radius:.5rem; border:1px solid #263147}
     .actions{display:flex; gap:.4rem; justify-content:flex-end}
-    .empty{opacity:.7; text-align:center; padding:1.5rem 0}
+    .empty{opacity:.75; text-align:center; padding:1.2rem 0}
 
-    dialog{border:none; border-radius:1rem; padding:0; background:rgba(15,23,42,.98); color:var(--text); width:min(880px, 96vw)}
-    dialog::backdrop{background:rgba(0,0,0,.35)}
+    /* Expand columns on tablets/desktops */
+    @media (min-width:780px){
+      .item{grid-template-columns: 28px 1fr .9fr .7fr 60px 112px}
+      .unit{display:block}
+      .thumb{display:block}
+    }
+
+    dialog{border:none; border-radius:var(--radius); padding:0; background:rgba(15,23,42,.98); color:var(--text); width:min(880px, 96vw)}
+    dialog::backdrop{background:rgba(0,0,0,.45)}
     .modal-head{display:flex; align-items:center; padding: .9rem 1rem; border-bottom:1px solid #263147}
     .modal-head h3{margin:0; font-size:1rem}
-    .modal-body{padding:1rem}
-    .modal-foot{display:flex; justify-content:flex-end; gap:.5rem; padding: .85rem 1rem; border-top:1px solid #263147}
+    .modal-body{padding:var(--gap)}
+    .modal-foot{display:flex; justify-content:space-between; gap:.5rem; padding: .85rem 1rem; border-top:1px solid #263147; flex-wrap:wrap}
 
-    .filters{display:grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap:.25rem .75rem; margin:.5rem 0 1rem}
-    @media (max-width:620px){.filters{grid-template-columns:1fr}}
+    .filters{display:grid; grid-template-columns: 1fr; gap:.4rem}
+    .filter-row{display:flex; align-items:center; gap:.5rem}
+    .filter-tools{display:flex; gap:.5rem; flex-wrap:wrap; margin:.25rem 0 .5rem}
 
     .chip{display:inline-flex; align-items:center; gap:.4rem; padding:.2rem .5rem; background:#0b1329}
     .chip .dot{width:.55rem; height:.55rem; border-radius:50%}
 
     .foot-actions{display:flex; gap:.5rem; flex-wrap:wrap}
     .muted{color:#9ca3af}
-    .note{font-size:.85rem; color:#9ca3af}
+    .note{font-size:.88rem; color:#9ca3af}
   </style>
 </head>
 <body>
@@ -91,8 +113,8 @@
     <div class="bar">
       <div class="brand">🛒 Shopping Spending Tracker</div>
       <div class="spacer"></div>
-      <button id="openAnalytics" class="ghost">Global Analytics</button>
-      <button id="backupBtn" title="Download backup of your data">Backup</button>
+      <button id="openAnalytics" class="ghost">Analytics</button>
+      <button id="backupBtn" title="Download backup of your data" class="ghost">Backup</button>
       <label class="btn" for="restoreFile" title="Restore from backup JSON" style="cursor:pointer">Restore</label>
       <input id="restoreFile" type="file" accept="application/json" style="display:none" />
     </div>
@@ -107,8 +129,8 @@
         <button id="newList" class="ghost">+ List</button>
         <button id="renameList" class="ghost">Rename</button>
         <button id="deleteList" class="warn">Delete</button>
-        <span class="spacer"></span>
-        <span class="note">Tip: Lists are organized by Group with <code>&lt;optgroup&gt;</code>. “Ungrouped” shows lists without a group.</span>
+        <button id="groupMenuBtn" class="ghost">Group ▾</button>
+        <span class="note" style="flex-basis:100%">Lists are organized by Group with <code>&lt;optgroup&gt;</code>. “Ungrouped” shows lists without a group.</span>
       </div>
     </div>
 
@@ -154,10 +176,8 @@
             <div class="card"><div class="k">Avg Price / Item</div><div class="v" id="m_avgPrice">$0.00</div></div>
           </div>
           <p class="note" style="margin-top:.75rem">Totals update in real-time when you add, edit, delete, or reorder items.</p>
-
           <div class="foot-actions" style="margin-top:1rem">
-            <button id="assignGroup">Assign to Group</button>
-            <button id="ungroup">Remove from Group</button>
+            <button id="groupMenuBtn2" class="ghost">Group ▾</button>
           </div>
         </div>
       </aside>
@@ -196,12 +216,29 @@
     </div>
   </dialog>
 
-  <!-- Analytics Modal -->
+  <!-- Analytics Modal (checkbox menus for groups and lists, with search & select tools) -->
   <dialog id="analyticsModal">
     <div class="modal-head"><h3>Global Analytics</h3><div class="spacer"></div></div>
     <div class="modal-body">
       <p class="note">Filter by group and/or list. Chart shows each list’s total spend plotted by its creation date (ordered by createdAt).</p>
-      <div id="filterHost" class="filters"></div>
+
+      <div class="filters">
+        <div>
+          <div class="filter-tools"><strong>Groups</strong> <button type="button" id="gAll" class="ghost">All</button> <button type="button" id="gNone" class="ghost">None</button></div>
+          <div id="groupFilterHost"></div>
+        </div>
+        <div>
+          <div class="filter-tools">
+            <strong>Lists</strong>
+            <input id="listSearch" placeholder="Search lists…" style="flex:1; min-width:150px" />
+            <button type="button" id="lAll" class="ghost">All</button>
+            <button type="button" id="lNone" class="ghost">None</button>
+            <button type="button" id="lOnlyCurrent" class="ghost">Only Current</button>
+          </div>
+          <div id="listFilterHost"></div>
+        </div>
+      </div>
+
       <canvas id="analyticsChart" height="130"></canvas>
       <div id="summary" style="margin-top:.75rem"></div>
     </div>
@@ -220,6 +257,23 @@
     </div>
     <div class="modal-foot">
       <button id="stopScan" class="ghost">Stop</button>
+    </div>
+  </dialog>
+
+  <!-- Group Menu (checkbox menu for assigning the CURRENT list’s group) -->
+  <dialog id="groupMenu">
+    <div class="modal-head"><h3>Group for Current List</h3><div class="spacer"></div></div>
+    <div class="modal-body">
+      <div class="note" style="margin-bottom:.5rem">Pick exactly one (we’ll auto-uncheck others). Use “Ungrouped” to remove the list from any group.</div>
+      <div id="groupMenuHost"></div>
+      <div style="margin-top:.75rem; display:flex; gap:.5rem; align-items:center; flex-wrap:wrap">
+        <input id="gmNewName" placeholder="New group name"/>
+        <button id="gmAddGroup" class="ghost" type="button">Add Group</button>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button id="gmClose" class="ghost">Close</button>
+      <button id="gmSave" class="primary">Save</button>
     </div>
   </dialog>
 
@@ -251,7 +305,7 @@
     // default seed
     let appData = loadData() || {
       groups: [/* {id, name, createdAt} */],
-      lists: [/* {id, name, groupId|null, createdAt, updatedAt, items:[{id, name, price, qty, imageUrl?, photoBase64?, createdAt, updatedAt}] } */],
+      lists: [/* {id, name, groupId|null, createdAt, updatedAt, items:[{id, name, price, qty, photoBase64?, imageUrl?, createdAt, updatedAt}] } */],
       selectedListId: null
     };
 
@@ -341,20 +395,56 @@
       saveData(); renderListSelector(); renderItems(); updateMetrics(); buildAnalyticsFilters(); updateAnalyticsChart();
     });
 
-    $('#assignGroup').addEventListener('click', () => {
-      const list = getCurrentList(); if(!list) return;
-      if(!appData.groups.length){ alert('Create a group first.'); return; }
-      const name = prompt('Assign to which group? Type exact name.\nAvailable: ' + appData.groups.map(g=>g.name).join(', '));
+    /********************
+     * Group Menu (checkbox menu)
+     ********************/
+    const groupMenu = $('#groupMenu');
+    const groupMenuBtn = $('#groupMenuBtn');
+    const groupMenuBtn2 = $('#groupMenuBtn2');
+
+    [groupMenuBtn, groupMenuBtn2].forEach(btn => btn && btn.addEventListener('click', openGroupMenu));
+
+    function openGroupMenu(){
+      const host = $('#groupMenuHost'); host.innerHTML = '';
+      // Build checkbox list with Ungrouped
+      const current = getCurrentList();
+      const entries = [{ id: 'null', name: 'Ungrouped' }, ...appData.groups.map(g=>({id:g.id, name:g.name}))];
+      entries.forEach(e => {
+        const row = document.createElement('label');
+        row.className = 'filter-row';
+        row.innerHTML = `<input type="checkbox" name="gmGroup" value="${e.id}"> <span>${escapeHtml(e.name)}</span>`;
+        const cb = row.querySelector('input');
+        const isChecked = (e.id === 'null' && !current.groupId) || (current.groupId && e.id === String(current.groupId));
+        cb.checked = !!isChecked;
+        // Enforce single selection
+        cb.addEventListener('change', (ev)=>{
+          if(ev.target.checked){
+            $$('#groupMenuHost input[type="checkbox"]').forEach(x => { if(x!==cb) x.checked = false; });
+          }
+        });
+        host.appendChild(row);
+      });
+      groupMenu.showModal();
+    }
+
+    $('#gmAddGroup').addEventListener('click', ()=>{
+      const name = $('#gmNewName').value.trim();
       if(!name) return;
-      const g = appData.groups.find(x => x.name.toLowerCase() === name.trim().toLowerCase());
-      if(!g){ alert('No matching group.'); return; }
-      list.groupId = g.id; list.updatedAt = nowISO(); saveData(); renderListSelector(); buildAnalyticsFilters(); updateAnalyticsChart();
+      appData.groups.push({ id: uid(), name, createdAt: nowISO() });
+      $('#gmNewName').value = '';
+      saveData(); renderListSelector(); buildAnalyticsFilters(); openGroupMenu();
     });
 
-    $('#ungroup').addEventListener('click', () => {
+    $('#gmSave').addEventListener('click', ()=>{
       const list = getCurrentList(); if(!list) return;
-      list.groupId = null; list.updatedAt = nowISO(); saveData(); renderListSelector(); buildAnalyticsFilters(); updateAnalyticsChart();
+      const picked = $$('#groupMenuHost input[type="checkbox"]').find(cb => cb.checked);
+      const val = picked ? picked.value : 'null';
+      list.groupId = (val === 'null') ? null : val;
+      list.updatedAt = nowISO();
+      saveData(); renderListSelector(); buildAnalyticsFilters(); updateAnalyticsChart(); groupMenu.close();
     });
+
+    $('#gmClose').addEventListener('click', ()=> groupMenu.close());
 
     /********************
      * Items CRUD        *
@@ -374,16 +464,16 @@
       const row = document.createElement('div');
       row.className = 'item'; row.dataset.id = item.id;
       row.innerHTML = `
-        <div class="drag">☰</div>
-        <div><strong>${escapeHtml(item.name)}</strong></div>
-        <div>${fmtMoney(item.price)} × ${item.qty}</div>
-        <div>${fmtMoney(item.price * item.qty)}</div>
-        <div>${item.photoBase64 || item.imageUrl ? `<img src="${item.photoBase64 || item.imageUrl}" alt="${escapeHtml(item.name)}"/>` : '<span class="muted">No photo</span>'}</div>
+        <div class="drag" title="Drag to reorder">☰</div>
+        <div class="name">${escapeHtml(item.name)} <div class="unit">${fmtMoney(item.price)} × ${item.qty}</div></div>
+        <div class="total">${fmtMoney(item.price * item.qty)}</div>
+        <div class="thumb">${item.photoBase64 || item.imageUrl ? `<img src="${item.photoBase64 || item.imageUrl}" alt="${escapeHtml(item.name)}"/>` : ''}</div>
         <div class="actions">
           <button class="ghost" data-act="edit">Edit</button>
           <button class="warn" data-act="del">Delete</button>
         </div>`;
 
+      // On small screens, actions are stacked at the end; grid handles layout via media queries
       row.querySelector('[data-act="edit"]').addEventListener('click', ()=> openEdit(item.id));
       row.querySelector('[data-act="del"]').addEventListener('click', ()=> deleteItem(item.id));
       return row;
@@ -495,28 +585,55 @@
     applyFiltersBtn.addEventListener('click', ()=> { collectFiltersFromUI(); updateAnalyticsChart(); });
 
     function buildAnalyticsFilters(){
-      const host = $('#filterHost'); host.innerHTML = '';
       // Groups
-      const gTitle = document.createElement('div'); gTitle.innerHTML = '<strong>Groups</strong>';
-      host.appendChild(gTitle);
-      appData.groups.forEach(g => host.appendChild(makeFilterRow('group', g.id, g.name, activeFilters.groups.has(g.id))));
+      const gHost = $('#groupFilterHost'); gHost.innerHTML = '';
+      appData.groups.forEach(g => gHost.appendChild(makeFilterRow('group', g.id, g.name, activeFilters.groups.has(g.id))));
+
       // Lists
-      const lTitle = document.createElement('div'); lTitle.innerHTML = '<strong>Lists</strong>';
-      host.appendChild(lTitle);
-      appData.lists.forEach(l => host.appendChild(makeFilterRow('list', l.id, l.name, activeFilters.lists.has(l.id))));
+      const lHost = $('#listFilterHost'); lHost.innerHTML = '';
+      appData.lists.forEach(l => lHost.appendChild(makeFilterRow('list', l.id, l.name, activeFilters.lists.has(l.id))));
+
+      // Wire tools
+      $('#gAll').onclick = ()=> { activeFilters.groups = new Set(appData.groups.map(g=>g.id)); syncFiltersToUI(); };
+      $('#gNone').onclick = ()=> { activeFilters.groups.clear(); syncFiltersToUI(); };
+      $('#lAll').onclick = ()=> { activeFilters.lists = new Set(appData.lists.map(l=>l.id)); syncFiltersToUI(); };
+      $('#lNone').onclick = ()=> { activeFilters.lists.clear(); syncFiltersToUI(); };
+      $('#lOnlyCurrent').onclick = ()=> { const cur = getCurrentList(); activeFilters.lists = new Set(cur? [cur.id] : []); syncFiltersToUI(); };
+
+      // Search
+      const search = $('#listSearch');
+      search.oninput = ()=>{
+        const q = search.value.trim().toLowerCase();
+        $$('#listFilterHost label').forEach(row=>{
+          const name = row.querySelector('span').textContent.toLowerCase();
+          row.style.display = name.includes(q) ? 'flex' : 'none';
+        });
+      };
+
+      // Initial sync
+      syncFiltersToUI();
     }
 
     function makeFilterRow(kind, id, label, checked){
-      const row = document.createElement('label'); row.style.display='flex'; row.style.alignItems='center'; row.style.gap='.5rem';
+      const row = document.createElement('label'); row.className='filter-row';
       row.innerHTML = `<input type="checkbox" data-kind="${kind}" value="${id}" ${checked? 'checked':''}/> <span>${escapeHtml(label)}</span>`;
+      row.querySelector('input').addEventListener('change', (e)=>{
+        const set = (kind==='group') ? activeFilters.groups : activeFilters.lists;
+        if(e.target.checked) set.add(e.target.value); else set.delete(e.target.value);
+      });
       return row;
+    }
+
+    function syncFiltersToUI(){
+      // Check/uncheck DOM boxes according to activeFilters
+      $$('#groupFilterHost input[type="checkbox"]').forEach(cb => cb.checked = activeFilters.groups.has(cb.value));
+      $$('#listFilterHost input[type="checkbox"]').forEach(cb => cb.checked = activeFilters.lists.has(cb.value));
     }
 
     function collectFiltersFromUI(){
       activeFilters = { groups: new Set(), lists: new Set() };
-      $$('#filterHost input[type="checkbox"]').forEach(cb => {
-        if(cb.checked){ if(cb.dataset.kind==='group') activeFilters.groups.add(cb.value); else activeFilters.lists.add(cb.value); }
-      });
+      $$('#groupFilterHost input[type="checkbox"]').forEach(cb => { if(cb.checked) activeFilters.groups.add(cb.value); });
+      $$('#listFilterHost input[type="checkbox"]').forEach(cb => { if(cb.checked) activeFilters.lists.add(cb.value); });
     }
 
     function listIncluded(list){
@@ -615,7 +732,7 @@
     const scanModal = $('#scanModal');
     const scanBtn = $('#scanBtn');
     const stopScanBtn = $('#stopScan');
-    let html5QrcodeScanner = null; let inProgress = false;
+    let html5QrcodeScanner = null; let inProgress = false; let latestScannedImageUrl = null;
 
     scanBtn.addEventListener('click', () => {
       $('#scanStatus').textContent = 'Initializing camera…';
@@ -659,13 +776,11 @@
           // Prefill the add-item form (non-destructive)
           $('#itemName').value = p.product_name || p.generic_name || $('#itemName').value;
           if(p.image_front_url){
-            // Store as remote imageURL unless user uploads a file
             latestScannedImageUrl = p.image_front_url; // temp, referenced when adding item
             $('#scanStatus').textContent = `Found: ${$('#itemName').value}`;
           }else{
             latestScannedImageUrl = null; $('#scanStatus').textContent = 'Found product but no image.';
           }
-          // optional: auto focus on price field
           $('#itemPrice').focus();
         }else{
           $('#scanStatus').textContent = 'No product found for this barcode. You can still enter manually.';
@@ -674,8 +789,6 @@
         console.error(err); $('#scanStatus').textContent = 'Lookup failed (offline or API error). Try again or enter manually.';
       }
     }
-
-    let latestScannedImageUrl = null;
 
     // On submit, if user didn’t upload a photo and we have scanned image, attach it
     $('#addItemForm').addEventListener('submit', ()=>{
