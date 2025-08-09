@@ -1,4 +1,4 @@
-// Spending & Shopping Tracker — App Logic
+// Spending & Shopping Tracker — App Logic (V1.1)
 // Local-only, mobile-first. Uses localStorage + DataURL images. No dependencies.
 
 // ======= Config =======
@@ -8,7 +8,7 @@ const DEFAULT_CURRENCY = 'CAD';
 function detectCurrency() {
   try {
     const loc = (Intl.NumberFormat().resolvedOptions().locale || navigator.language || 'en-CA');
-    const m = loc.match(/-([A-Z]{2})\b/i);
+    const m = loc.match(/-([A-Z]{2})/i);
     const region = (m ? m[1] : 'CA').toUpperCase();
     // Map common regions to currencies; default to CAD if unknown
     const EUR = new Set(['AT','BE','CY','EE','FI','FR','DE','GR','IE','IT','LV','LT','LU','MT','NL','PT','SK','SI','ES']);
@@ -25,6 +25,7 @@ function detectCurrency() {
 }
 
 const CURRENCY = detectCurrency();
+let chartType = 'bar'; // 'bar' | 'line'
 
 // ======= State =======
 let state = loadState();
@@ -61,12 +62,29 @@ const itemsGrid = document.getElementById('itemsGrid');
 
 const itemName = document.getElementById('itemName');
 const itemPrice = document.getElementById('itemPrice');
+const itemQty   = document.getElementById('itemQty'); // optional (falls back to 1 if absent)
 const addItemBtn = document.getElementById('addItemBtn');
 const photoTrigger = document.getElementById('photoTrigger');
 const photoInput = document.getElementById('photoInput');
 const photoPreviewWrap = document.getElementById('photoPreviewWrap');
 const photoPreview = document.getElementById('photoPreview');
 const clearPreview = document.getElementById('clearPreview');
+
+// Create Qty field in UI if it's missing (runtime patch)
+(function ensureQtyField(){
+  const has = document.getElementById('itemQty');
+  const price = document.getElementById('itemPrice');
+  if(!has && price){
+    const wrap = document.createElement('label'); wrap.className='field';
+    const lab = document.createElement('div'); lab.className='label'; lab.textContent='Qty';
+    const input = document.createElement('input');
+    input.id='itemQty'; input.type='number'; input.min='1'; input.step='1'; input.value='1'; input.inputMode='numeric';
+    wrap.append(lab, input);
+
+    const field = price.closest('.field') || price.parentElement;
+    if(field && field.parentNode){ field.parentNode.insertBefore(wrap, field.nextSibling); }
+  }
+})();
 
 // Modals
 const listsModal = document.getElementById('listsModal');
@@ -105,6 +123,7 @@ const chartCanvas = document.getElementById('chart');
 const filtersLists = document.getElementById('filtersLists');
 const filtersGroups = document.getElementById('filtersGroups');
 const applyFiltersBtn = document.getElementById('applyFilters');
+const chartTypeBtn = document.getElementById('chartTypeBtn'); // optional
 
 // Export elements
 const exportBtn = document.getElementById('exportBtn');
@@ -134,8 +153,15 @@ photoTrigger.addEventListener('click',()=> photoInput.click());
 photoInput.addEventListener('change', handlePhotoSelected);
 clearPreview.addEventListener('click',()=>{photoInput.value=''; photoPreviewWrap.style.display='none'; photoPreview.src=''});
 
+// Quick-set budget via pill tap
+budgetStatusEl.addEventListener('click', setBudgetQuick);
+
 filtersBtn.addEventListener('click',()=>{renderFilters(); filtersModal.showModal()});
 applyFiltersBtn.addEventListener('click',()=>{filtersModal.close(); drawChart()});
+
+// Chart type toggle: button if present + double-tap on chart
+if(chartTypeBtn){ chartTypeBtn.addEventListener('click', toggleChartType) }
+if(chartCanvas){ chartCanvas.addEventListener('dblclick', toggleChartType) }
 
 exportCurrentJSON.addEventListener('click',()=>exportJSON({scope:'current'}));
 exportAllJSON.addEventListener('click',()=>exportJSON({scope:'all'}));
@@ -175,7 +201,7 @@ function renderListSelect(){
 function renderHeaderStats(){
   const list = currentList();
   if(!list) return;
-  const total = list.items.reduce((a,b)=>a+Number(b.price||0),0);
+  const total = list.items.reduce((a,b)=>a + itemTotal(b), 0);
   const withP = list.items.filter(i=>!!i.photo).length;
   const withoutP = list.items.length - withP;
 
@@ -216,19 +242,22 @@ function renderItems(){
       if(item.photo) thumb.style.backgroundImage = `url(${item.photo})`;
       const content = document.createElement('div'); content.className='content';
       const name = document.createElement('div'); name.textContent=item.name;
-      const price = document.createElement('div'); price.className='price'; price.textContent = formatMoney(item.price);
-      const meta = document.createElement('div'); meta.className='meta'; meta.textContent = new Date(item.ts).toLocaleString();
+      const price = document.createElement('div'); price.className='price'; price.textContent = formatMoney(itemTotal(item));
+      const meta = document.createElement('div'); meta.className='meta';
+      meta.textContent = (item.qty && item.qty>1 ? `Qty ${item.qty} @ ${formatMoney(item.price)} • ` : '') + new Date(item.ts).toLocaleString();
       content.append(name, price, meta);
       const actions = document.createElement('div'); actions.className='actions';
       const viewBtn = document.createElement('button'); viewBtn.className='ghost'; viewBtn.textContent = 'View'; viewBtn.disabled = !item.photo;
-      viewBtn.addEventListener('click',()=>{ if(item.photo){ photoViewImg.src=item.photo; photoViewTitle.textContent=`${item.name} – ${formatMoney(item.price)}`; photoView.showModal(); }});
+      viewBtn.addEventListener('click',()=>{ if(item.photo){ photoViewImg.src=item.photo; photoViewTitle.textContent=`${item.name} – ${formatMoney(itemTotal(item))}`; photoView.showModal(); }});
+      const editBtn = document.createElement('button'); editBtn.className='ghost'; editBtn.textContent='Edit';
+      editBtn.addEventListener('click',()=> editItem(item.id));
       const delBtn = document.createElement('button'); delBtn.className='danger'; delBtn.textContent='Delete';
       delBtn.addEventListener('click',()=>{
         const cur = currentList();
         cur.items = cur.items.filter(i=>i.id!==item.id);
         saveState(); renderAll();
       });
-      actions.append(viewBtn, delBtn);
+      actions.append(viewBtn, editBtn, delBtn);
       card.append(thumb, content, actions);
       itemsGrid.appendChild(card);
     });
@@ -237,6 +266,7 @@ function renderItems(){
 async function handleAddItem(){
   const name = (itemName.value||'').trim();
   const price = parseFloat(itemPrice.value);
+  const qtyInput = document.getElementById('itemQty'); let qty = 1; if(qtyInput){ qty = parseInt(qtyInput.value||'1',10); if(isNaN(qty)||qty<1) qty=1; }
   if(!name){ alert('Please enter an item name.'); return; }
   if(isNaN(price) || price<0){ alert('Please enter a valid price.'); return; }
 
@@ -246,11 +276,11 @@ async function handleAddItem(){
     catch(e){ console.warn('Photo compression failed, falling back to original', e); photoData = await fileToDataURL(photoInput.files[0]); }
   }
 
-  const item = { id: makeId(), name, price: round2(price), photo: photoData, ts: Date.now() };
+  const item = { id: makeId(), name, price: round2(price), qty, photo: photoData, ts: Date.now() };
   const list = currentList();
   list.items.push(item);
   saveState();
-  itemName.value=''; itemPrice.value=''; photoInput.value=''; photoPreviewWrap.style.display='none'; photoPreview.src='';
+  itemName.value=''; itemPrice.value=''; if(qtyInput) qtyInput.value='1'; photoInput.value=''; photoPreviewWrap.style.display='none'; photoPreview.src='';
   renderAll();
 }
 
@@ -269,7 +299,7 @@ function renderListsModal(){
     const row = document.createElement('div'); row.className='list-row';
     const left = document.createElement('div');
     left.innerHTML = `<div style="font-weight:700">${escapeHtml(list.name)}</div>`+
-      `<div class="hint">${list.items.length} items • ${formatMoney(list.items.reduce((a,b)=>a+Number(b.price||0),0))}`+
+      `<div class="hint">${list.items.length} items • ${formatMoney(list.items.reduce((a,b)=>a+itemTotal(b),0))}`+
       `${list.budget?` • Budget ${formatMoney(list.budget)}`:''}</div>`;
     const right = document.createElement('div'); right.className='row'; right.style.gap='6px';
     const edit = document.createElement('button'); edit.className='ghost'; edit.textContent='Edit';
@@ -417,9 +447,9 @@ function renderGallery(){
   withPhotos.forEach(i=>{
     const card = document.createElement('div'); card.className='gcard';
     const ph = document.createElement('div'); ph.className='ph'; ph.style.backgroundImage=`url(${i.photo})`;
-    ph.addEventListener('click',()=>{ photoViewImg.src=i.photo; photoViewTitle.textContent=`${i.name} – ${formatMoney(i.price)}`; photoView.showModal() });
+    ph.addEventListener('click',()=>{ photoViewImg.src=i.photo; photoViewTitle.textContent=`${i.name} – ${formatMoney(itemTotal(i))}`; photoView.showModal() });
     const gc = document.createElement('div'); gc.className='gc';
-    gc.innerHTML = `<div style=\"font-weight:700\">${escapeHtml(i.name)} • ${formatMoney(i.price)}</div>`+
+    gc.innerHTML = `<div style=\"font-weight:700\">${escapeHtml(i.name)} • ${formatMoney(itemTotal(i))}</div>`+
       `<div class=\"hint\">${new Date(i.ts).toLocaleString()}</div>`;
     card.append(ph,gc); gallery.appendChild(card);
   });
@@ -428,7 +458,7 @@ function renderGallery(){
 // ======= Analytics =======
 function renderAnalytics(){
   const list = currentList(); if(!list) return;
-  const total = list.items.reduce((a,b)=>a+Number(b.price||0),0);
+  const total = list.items.reduce((a,b)=>a + itemTotal(b), 0);
   const withP = list.items.filter(i=>!!i.photo).length;
   const withoutP = list.items.length - withP;
   statListSpent.textContent = formatMoney(total);
@@ -438,11 +468,11 @@ function renderAnalytics(){
 
   // Most/Least expensive (current list)
   if(list.items.length){
-    const sorted = list.items.slice().sort((a,b)=>a.price-b.price);
+    const sorted = list.items.slice().sort((a,b)=>itemTotal(a)-itemTotal(b));
     const least = sorted[0];
     const most = sorted[sorted.length-1];
-    statLeast.textContent = `${least.name} (${formatMoney(least.price)})`;
-    statMost.textContent = `${most.name} (${formatMoney(most.price)})`;
+    statLeast.textContent = `${least.name} (${formatMoney(itemTotal(least))})`;
+    statMost.textContent = `${most.name} (${formatMoney(itemTotal(most))})`;
   }else{
     statLeast.textContent = '—'; statMost.textContent='—';
   }
@@ -482,7 +512,7 @@ function drawChart(){
   const ctx = chartCanvas.getContext('2d');
   ctx.clearRect(0,0,chartCanvas.width, chartCanvas.height);
 
-  const W = chartCanvas.clientWidth; const H = chartCanvas.height; // CSS width -> adjust canvas width
+  const W = chartCanvas.clientWidth; const H = chartCanvas.height;
   if(chartCanvas.width!==W) { chartCanvas.width=W }
 
   const listIds = getFilterSelection();
@@ -492,36 +522,64 @@ function drawChart(){
     const l = state.lists[id]; if(!l) return;
     l.items.forEach(it=>{
       const d = new Date(it.ts); const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-      map.set(key, (map.get(key)||0) + Number(it.price||0));
+      map.set(key, (map.get(key)||0) + itemTotal(it));
     })
   });
   const entries = Array.from(map.entries()).sort((a,b)=>a[0]>b[0]?1:-1);
   const labels = entries.map(e=>e[0]);
   const values = entries.map(e=>e[1]);
 
-  // draw axes and bars
-  const pad = 28; const barGap = 10; const n = Math.max(values.length,1);
+  const pad = 36; const innerW = W - pad*2; const innerH = H - pad*2;
   const maxVal = Math.max(10, Math.ceil(Math.max(...values, 0)));
-  const innerW = W - pad*2; const innerH = H - pad*2;
 
   // Axes
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth=1;
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(pad, pad); ctx.lineTo(pad, H-pad); ctx.lineTo(W-pad, H-pad); ctx.stroke();
 
-  // Bars
-  const barW = Math.max(10, (innerW - (n-1)*barGap) / n);
-  ctx.fillStyle = '#6ee7ff';
-  values.forEach((v,i)=>{
-    const x = pad + i*(barW+barGap);
-    const h = (v/maxVal)*innerH;
-    const y = H - pad - h;
-    ctx.fillRect(x, y, barW, h);
-  });
+  // Y ticks (0..max)
+  ctx.fillStyle='rgba(255,255,255,.8)'; ctx.font='12px system-ui'; ctx.textAlign='right';
+  const ticks = 4;
+  for(let t=0;t<=ticks;t++){
+    const val = maxVal * (t/ticks);
+    const y = H - pad - (val/maxVal)*innerH;
+    ctx.strokeStyle='rgba(255,255,255,0.12)';
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W-pad, y); ctx.stroke();
+    ctx.fillText(formatMoney(val), pad-6, y-2);
+  }
 
-  // Labels
-  ctx.fillStyle='rgba(255,255,255,.8)'; ctx.font='12px system-ui'; ctx.textAlign='center';
-  labels.forEach((lab,i)=>{ const x = pad + i*(barW+barGap) + barW/2; ctx.fillText(lab, x, H-8) });
+  // X labels
+  ctx.textAlign='center';
+  labels.forEach((lab,i)=>{ const x = pad + (i+0.5)*(innerW/Math.max(labels.length,1)); ctx.fillText(lab, x, H-8) });
+
+  if(chartType==='bar'){
+    const n = Math.max(values.length,1);
+    const barGap = 10; const barW = Math.max(10, (innerW - (n-1)*barGap) / n);
+    ctx.fillStyle = '#6ee7ff';
+    values.forEach((v,i)=>{
+      const x = pad + i*(barW+barGap);
+      const h = (v/maxVal)*innerH;
+      const y = H - pad - h;
+      ctx.fillRect(x, y, barW, h);
+    });
+  } else {
+    // line
+    ctx.strokeStyle = '#6ee7ff'; ctx.lineWidth=2; ctx.beginPath();
+    values.forEach((v,i)=>{
+      const x = pad + (i+0.5)*(innerW/Math.max(values.length,1));
+      const y = H - pad - (v/maxVal)*innerH;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    // points
+    values.forEach((v,i)=>{
+      const x = pad + (i+0.5)*(innerW/Math.max(values.length,1));
+      const y = H - pad - (v/maxVal)*innerH;
+      ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
+    });
+  }
 }
+
+function toggleChartType(){ chartType = (chartType==='bar')?'line':'bar'; if(chartTypeBtn){ chartTypeBtn.textContent = chartType==='bar' ? 'Bar' : 'Line'; } drawChart(); }
 
 // ======= Export / Import =======
 function renderExportModal(){
@@ -548,12 +606,13 @@ function exportJSON({scope}){
 function exportCSV(){
   const ids = Array.from(csvListPicker.querySelectorAll('input[type=checkbox]:checked')).map(i=>i.getAttribute('data-id'));
   if(!ids.length){ alert('Select at least one list'); return }
-  const rows = [['List','Item','Price','Timestamp','HasPhoto']];
+  const rows = [['List','Item','Qty','UnitPrice','Total','Timestamp','HasPhoto']];
   ids.forEach(id=>{
     const l = state.lists[id]; if(!l) return;
-    l.items.forEach(it=> rows.push([l.name, it.name, round2(it.price).toFixed(2), new Date(it.ts).toISOString(), it.photo? 'yes':'no']));
+    l.items.forEach(it=> rows.push([l.name, it.name, it.qty||1, round2(it.price).toFixed(2), itemTotal(it).toFixed(2), new Date(it.ts).toISOString(), it.photo? 'yes':'no']));
   });
-  const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('
+');
   downloadBlob(csv, 'shopping-tracker.csv', 'text/csv');
 }
 
@@ -608,7 +667,64 @@ function ensureUniqueGroupName(name){
   let i=2; while(existing.has(`${name} (${i})`)) i++; return `${name} (${i})`;
 }
 
+// ======= Item & Budget Editing =======
+async function setBudgetQuick(){
+  const list = currentList(); if(!list) return;
+  const cur = list.budget ?? '';
+  const v = prompt('Set budget for this list (blank to clear):', cur);
+  if(v===null) return; // cancel
+  if(v.trim()===''){ list.budget = null; }
+  else{
+    const b = parseFloat(v); if(isNaN(b)||b<0){ alert('Invalid budget'); return } list.budget = round2(b);
+  }
+  saveState(); renderAll();
+}
+
+async function editItem(itemId){
+  const list = currentList(); if(!list) return;
+  const item = list.items.find(i=>i.id===itemId); if(!item) return;
+  const data = await promptEditItem(item);
+  if(!data) return;
+  item.name = data.name.trim();
+  item.price = round2(data.price);
+  item.qty = Math.max(1, parseInt(data.qty||1,10));
+  if(data.clearPhoto){ item.photo = null; }
+  if(data.file){ try{ item.photo = await compressImageToDataURL(data.file, 1280, 0.7) } catch(e){ console.warn('compress failed', e); item.photo = await fileToDataURL(data.file) } }
+  saveState(); renderAll();
+}
+
+function promptEditItem(item){
+  return new Promise(resolve=>{
+    const dlg = document.createElement('dialog');
+    dlg.style.padding='0'; dlg.style.border='none'; dlg.style.borderRadius='18px'; dlg.style.background='var(--card)';
+    dlg.innerHTML = `
+      <div class=\"modal-head\"><div class=\"title\">Edit Item</div></div>
+      <div class=\"modal-body\">
+        <label class=\"row\" style=\"gap:8px\"><span style=\"width:80px\">Name</span><input id=\"eiName\" type=\"text\" value=\"${escapeHtml(item.name)}\"></label>
+        <label class=\"row\" style=\"gap:8px\"><span style=\"width:80px\">Price</span><input id=\"eiPrice\" type=\"number\" step=\"0.01\" min=\"0\" value=\"${item.price}\"></label>
+        <label class=\"row\" style=\"gap:8px\"><span style=\"width:80px\">Qty</span><input id=\"eiQty\" type=\"number\" step=\"1\" min=\"1\" value=\"${item.qty||1}\"></label>
+        <label class=\"row\" style=\"gap:8px\"><span style=\"width:80px\">Photo</span><input id=\"eiPhoto\" type=\"file\" accept=\"image/*\"></label>
+        <label class=\"row\" style=\"gap:8px\"><input id=\"eiClear\" type=\"checkbox\"> <span>Clear existing photo</span></label>
+      </div>
+      <div class=\"modal-foot\"><button id=\"ok\" class=\"primary\">Save</button> <button id=\"cancel\" class=\"ghost\">Cancel</button></div>`;
+    document.body.appendChild(dlg); dlg.showModal();
+    dlg.querySelector('#cancel').addEventListener('click',()=>{dlg.close(); dlg.remove(); resolve(null)});
+    dlg.querySelector('#ok').addEventListener('click',()=>{
+      const name = dlg.querySelector('#eiName').value||'';
+      const price = parseFloat(dlg.querySelector('#eiPrice').value||'0');
+      const qty = parseInt(dlg.querySelector('#eiQty').value||'1',10);
+      const file = (dlg.querySelector('#eiPhoto').files||[])[0]||null;
+      const clearPhoto = dlg.querySelector('#eiClear').checked;
+      dlg.close(); dlg.remove();
+      if(!name.trim()){ alert('Name required'); resolve(null); return }
+      if(isNaN(price)||price<0){ alert('Invalid price'); resolve(null); return }
+      resolve({name, price, qty, file, clearPhoto});
+    });
+  });
+}
+
 // ======= Utils =======
+function itemTotal(it){ return round2(Number(it.price||0) * Number(it.qty||1)); }
 function round2(n){ return Math.round((Number(n)||0)*100)/100 }
 function formatMoney(n){ return new Intl.NumberFormat(undefined,{style:'currency',currency:CURRENCY}).format(round2(n)) }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])) }
