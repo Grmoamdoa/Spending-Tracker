@@ -72,3 +72,49 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .space{height:6px}
 .sr{position:absolute;left:-9999px}
 .divider{height:1px;background:rgba(255,255,255,.08);margin:12px 0}
+
+/* --- Mobile fit + overflow fixes --- */
+html, body { max-width: 100%; overflow-x: hidden; }
+
+header .row,
+.row { flex-wrap: wrap; }            /* let controls wrap instead of overflowing */
+
+.container {
+  width: 100%;
+  max-width: 640px;                  /* comfy phone width cap */
+  margin: 0 auto;
+  padding-left: 12px;
+  padding-right: 12px;
+  padding-bottom: calc(90px + env(safe-area-inset-bottom)); /* room for fixed bottom nav */
+}
+
+/* Inputs/buttons must be >=16px on iOS or Safari will zoom and break layout */
+select, input[type="text"], input[type="number"], button, .btn {
+  font-size: 16px;
+  min-width: 0;                      /* allow shrinking inside flex/grid */
+}
+
+/* Header selects/buttons shouldn’t force overflow */
+#listSelect { min-width: 0; max-width: 60vw; }
+
+/* Item input row should never push wider than viewport */
+.input-grid {
+  grid-template-columns: minmax(0,1fr) minmax(84px, 26vw) 44px;
+}
+
+/* Items grid: one column on small screens; grow as width allows */
+.items { grid-template-columns: 1fr; }
+@media (min-width: 480px) { .items { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (min-width: 720px) { .items { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+
+/* Cards/charts/images must not overflow */
+.card, .item, .stat, .gcard { width: 100%; }
+img, canvas { max-width: 100%; height: auto; display: block; }
+#chart { width: 100%; }
+
+/* Fixed bottom nav with safe-area padding for iOS */
+.nav { left: 0; right: 0; padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+.nav .bar { grid-template-columns: repeat(4, minmax(0,1fr)); }
+
+/* Dialogs: make sure they never exceed the viewport width */
+dialog { width: min(96vw, 720px); }
