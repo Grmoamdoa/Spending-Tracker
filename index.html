@@ -1,845 +1,501 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Shopping Spending Tracker</title>
-  <meta name="description" content="Single-file shopping spending tracker with groups, lists, barcode scan, analytics, backup/restore. Mobile-first." />
-  <style>
-    /* ===============
-       MOBILE-FIRST UI
-       =============== */
-    :root{
-      --bg: #0f172a;           /* slate-900 */
-      --panel: #111827;        /* gray-900 */
-      --muted: #1f2937;        /* gray-800 */
-      --muted-2: #374151;      /* gray-700 */
-      --text: #e5e7eb;         /* gray-200 */
-      --accent: #8b5cf6;       /* violet-500 */
-      --accent-2:#22d3ee;      /* cyan-400 */
-      --danger:#ef4444;        /* red-500 */
-      --success:#10b981;       /* emerald-500 */
-      --warning:#f59e0b;       /* amber-500 */
-      --radius: 14px;
-      --gap: .75rem;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
-      background: linear-gradient(160deg, #0b1026, #0a1a2a 35%, #101f3a);
-      color:var(--text);
-    }
-    header{position:sticky; top:0; z-index:5; backdrop-filter: blur(6px);}  
-    .bar{display:flex; align-items:center; gap:.5rem; padding:.6rem .75rem; background:rgba(17,24,39,.85); border-bottom:1px solid #263147; flex-wrap:wrap}
-    .brand{font-weight:700; letter-spacing:.3px; font-size:1.02rem}
-    .spacer{flex:1}
-    select, input, button, .btn, .chip, .card{
-      border-radius:var(--radius); border:1px solid #263147; background:var(--panel); color:var(--text)
-    }
-    select, input{padding:.7rem .75rem; font-size:1rem}
-    button, .btn{padding:.7rem .85rem; cursor:pointer; font-size:1rem}
-    button.primary{background:linear-gradient(180deg, var(--accent), #6d28d9); border-color:#5232d4}
-    button.ghost{background:transparent; border-color:#263147}
-    button.warn{background:linear-gradient(180deg, #ef4444, #b91c1c); border-color:#b91c1c}
-    button:disabled{opacity:.6; cursor:not-allowed}
-    .wrap{max-width:1100px; margin:0 auto; padding:var(--gap)}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Shopping List V3 (Final)</title>
+    <!-- V3 Library Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode/html5-qrcode.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #8e44ad;
+            --secondary-color: #3498db;
+            --danger-color: #c0392b;
+            --warning-color: #f39c12;
+            --success-color: #27ae60;
+            --background-gradient: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            --white: #ffffff;
+            --light-gray: #f0f0f0;
+            --dark-gray: #333333;
+            --shadow: 0 4px 15px rgba(0,0,0,0.1);
+            --border-radius: 12px;
+        }
 
-    /* TOOLBAR */
-    .toolbar{display:grid; grid-template-columns: 1fr; gap: var(--gap); align-items:center; margin-top:.5rem}
-    .grouping{display:flex; align-items:center; gap:.5rem; flex-wrap:wrap}
-    #listSelector{min-width:260px; max-width:100%}
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            background: var(--background-gradient);
+            color: var(--dark-gray);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 15px;
+            box-sizing: border-box;
+        }
 
-    /* MAIN GRID becomes single column on mobile-first, two columns on > 960px */
-    .grid{display:grid; grid-template-columns: 1fr; gap:var(--gap); align-items:start; margin-top:var(--gap)}
-    @media (min-width: 960px){ .grid{grid-template-columns: 1.1fr .9fr} }
+        .app-container {
+            width: 100%;
+            max-width: 450px;
+            background: var(--light-gray);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
 
-    .panel{background:rgba(17,24,39,.6); border:1px solid #263147; border-radius:var(--radius); box-shadow: 0 10px 30px rgba(0,0,0,.35)}
-    .panel h2{margin:0; font-size:1.05rem; padding: .9rem 1rem; border-bottom:1px solid #263147; background:linear-gradient(180deg, rgba(31,41,55,.6), rgba(17,24,39,.7))}
-    .panel .content{padding:var(--gap)}
+        header {
+            background: var(--white);
+            padding: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .header-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .header-row:not(:last-child) { margin-bottom: 10px; }
+        #list-selector { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: var(--border-radius); font-size: 16px; }
 
-    /* METRIC CARDS become 2 cols on small screens, 3 on larger */
-    .cards{display:grid; grid-template-columns: repeat(2, 1fr); gap:.6rem}
-    @media (min-width:680px){.cards{grid-template-columns:repeat(3,1fr)}}
-    .card{padding: .8rem 1rem; background:linear-gradient(180deg, rgba(31,41,55,.6), rgba(17,24,39,.7))}
-    .card .k{font-size:.8rem; color:#9ca3af}
-    .card .v{font-weight:700; font-size:1.15rem}
+        .btn { padding: 10px 15px; border: none; border-radius: var(--border-radius); background: var(--primary-color); color: var(--white); cursor: pointer; font-size: 16px; transition: background 0.3s; flex-shrink: 0; }
+        .btn:hover { background: #732d91; }
+        .btn-secondary { background: var(--secondary-color); }
+        .btn-secondary:hover { background: #2980b9; }
+        .btn-danger { background: var(--danger-color); }
+        .btn-danger:hover { background: #a5281b; }
+        .btn-small { padding: 5px 10px; font-size: 14px; }
+        .icon-btn { padding: 8px; font-size: 14px; line-height: 1; display: flex; align-items: center; justify-content: center; }
 
-    /* ITEM FORM becomes two rows on phones */
-    .item-form{display:grid; gap:.6rem; grid-template-columns: 1fr 1fr; align-items:end}
-    .item-form label{font-size:.8rem; opacity:.85}
-    .item-form input[type="file"]{padding:.35rem}
-    @media (min-width:820px){ .item-form{grid-template-columns: 2fr 1fr 1fr 1fr} }
+        .analytics-header { display: flex; justify-content: space-around; text-align: center; padding: 15px 0; background: rgba(255,255,255,0.5); }
+        .metric { font-size: 14px; }
+        .metric span { display: block; font-weight: bold; font-size: 18px; }
 
-    .items{display:flex; flex-direction:column; gap:.55rem}
-    .item{display:grid; align-items:center; grid-template-columns: 28px 1fr auto; gap:.55rem; padding:.65rem; background:rgba(17,24,39,.6); border:1px solid #263147; border-radius:.9rem}
-    .drag{cursor:grab; text-align:center; opacity:.85}
-    .name{font-weight:700}
-    .unit{display:none; color:#cbd5e1; font-size:.92rem}
-    .total{font-weight:700}
-    .thumb{display:none}
-    .thumb img{width:46px; height:46px; object-fit:cover; border-radius:.5rem; border:1px solid #263147}
-    .actions{display:flex; gap:.4rem; justify-content:flex-end}
-    .empty{opacity:.75; text-align:center; padding:1.2rem 0}
+        main { padding: 20px; }
+        
+        #barcode-scanner-container { display: none; margin-bottom: 15px; }
+        #barcode-reader { border: 2px solid #ddd; border-radius: var(--border-radius); }
 
-    /* Expand columns on tablets/desktops */
-    @media (min-width:780px){
-      .item{grid-template-columns: 28px 1fr .9fr .7fr 60px 112px}
-      .unit{display:block}
-      .thumb{display:block}
-    }
+        .add-item-form { background: var(--white); padding: 20px; border-radius: var(--border-radius); margin-bottom: 20px; box-shadow: var(--shadow); }
+        .form-row { display: flex; gap: 10px; align-items: center; }
+        .form-group { margin-bottom: 15px; flex-grow: 1; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-group input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: var(--border-radius); box-sizing: border-box; }
+        #photo-preview { max-width: 100px; margin-top: 10px; border-radius: var(--border-radius); display: none; }
 
-    dialog{border:none; border-radius:var(--radius); padding:0; background:rgba(15,23,42,.98); color:var(--text); width:min(880px, 96vw)}
-    dialog::backdrop{background:rgba(0,0,0,.45)}
-    .modal-head{display:flex; align-items:center; padding: .9rem 1rem; border-bottom:1px solid #263147}
-    .modal-head h3{margin:0; font-size:1rem}
-    .modal-body{padding:var(--gap)}
-    .modal-foot{display:flex; justify-content:space-between; gap:.5rem; padding: .85rem 1rem; border-top:1px solid #263147; flex-wrap:wrap}
+        #item-list { display: grid; gap: 15px; }
+        .item-card { background: var(--white); padding: 15px; border-radius: var(--border-radius); box-shadow: var(--shadow); display: flex; align-items: center; gap: 10px; position: relative; }
+        .item-card .drag-handle { cursor: grab; font-size: 24px; color: #ccc; padding-right: 5px; }
+        .item-card .drag-handle:active { cursor: grabbing; }
+        .sortable-ghost { opacity: 0.4; background: #e0c8ee; }
+        .sortable-chosen { box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
 
-    .filters{display:grid; grid-template-columns: 1fr; gap:.4rem}
-    .filter-row{display:flex; align-items:center; gap:.5rem}
-    .filter-tools{display:flex; gap:.5rem; flex-wrap:wrap; margin:.25rem 0 .5rem}
+        .item-card img { width: 60px; height: 60px; border-radius: var(--border-radius); object-fit: cover; }
+        .item-info { flex-grow: 1; }
+        .item-info h3 { margin: 0; font-size: 18px; }
+        .item-info p { margin: 5px 0 0; font-size: 16px; color: var(--primary-color); font-weight: bold; }
+        .item-actions { display: flex; gap: 5px; }
 
-    .chip{display:inline-flex; align-items:center; gap:.4rem; padding:.2rem .5rem; background:#0b1329}
-    .chip .dot{width:.55rem; height:.55rem; border-radius:50%}
-
-    .foot-actions{display:flex; gap:.5rem; flex-wrap:wrap}
-    .muted{color:#9ca3af}
-    .note{font-size:.88rem; color:#9ca3af}
-  </style>
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); justify-content: center; align-items: center; }
+        .modal-content { background-color: var(--light-gray); padding: 20px; border-radius: var(--border-radius); width: 90%; max-width: 500px; box-shadow: 0 5px 20px rgba(0,0,0,0.3); position: relative; max-height: 80vh; display: flex; flex-direction: column; }
+        .modal-body { overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; flex-shrink: 0; }
+        .modal-header h2 { margin: 0; }
+        .close-btn { font-size: 28px; font-weight: bold; cursor: pointer; }
+        .modal-content input, .modal-content select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: var(--border-radius); box-sizing: border-box; margin-bottom: 15px; }
+        .modal-footer { margin-top: 20px; border-top: 1px solid #ccc; padding-top: 20px; display:flex; gap: 10px; flex-wrap: wrap; }
+        
+        .chart-container { position: relative; height: 220px; width: 100%; margin-bottom: 20px; }
+        
+        .management-list, .filter-list { list-style: none; padding: 0; margin: 0; }
+        .management-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; background: var(--white); border-radius: var(--border-radius); margin-bottom: 10px; }
+        .management-item .name { font-weight: bold; }
+        .management-item select { margin-bottom: 0; }
+        .filter-item label { display: flex; align-items: center; gap: 10px; padding: 12px; cursor: pointer; background: var(--white); border-radius: 8px; margin-bottom: 8px; }
+        .filter-group-header { font-weight: bold; margin-top: 15px; padding-bottom: 5px; border-bottom: 1px solid #ccc; margin-bottom: 10px; }
+    </style>
 </head>
 <body>
-  <header>
-    <div class="bar">
-      <div class="brand">🛒 Shopping Spending Tracker</div>
-      <div class="spacer"></div>
-      <button id="openAnalytics" class="ghost">Analytics</button>
-      <button id="backupBtn" title="Download backup of your data" class="ghost">Backup</button>
-      <label class="btn" for="restoreFile" title="Restore from backup JSON" style="cursor:pointer">Restore</label>
-      <input id="restoreFile" type="file" accept="application/json" style="display:none" />
-    </div>
-  </header>
 
-  <div class="wrap">
-    <div class="toolbar panel">
-      <div class="grouping content">
-        <label for="listSelector" class="muted">Current List</label>
-        <select id="listSelector" title="Choose a list (organized by groups)"></select>
-        <button id="newGroup" class="ghost">+ Group</button>
-        <button id="newList" class="ghost">+ List</button>
-        <button id="renameList" class="ghost">Rename</button>
-        <button id="deleteList" class="warn">Delete</button>
-        <button id="groupMenuBtn" class="ghost">Group ▾</button>
-        <span class="note" style="flex-basis:100%">Lists are organized by Group with <code>&lt;optgroup&gt;</code>. “Ungrouped” shows lists without a group.</span>
-      </div>
-    </div>
-
-    <div class="grid">
-      <section class="panel">
-        <h2>Items</h2>
-        <div class="content">
-          <form id="addItemForm" class="item-form">
-            <div>
-              <label>Item name</label>
-              <input id="itemName" required placeholder="e.g., Eggs" />
+    <div class="app-container">
+        <header>
+            <div class="header-row">
+                <select id="list-selector"></select>
+                <button class="btn icon-btn" id="new-list-btn" title="New List">+</button>
+                <button class="btn btn-danger icon-btn" id="delete-list-btn" title="Delete Selected List">🗑️</button>
             </div>
-            <div>
-              <label>Price</label>
-              <input id="itemPrice" type="number" step="0.01" min="0" required placeholder="0.00" />
+            <div class="header-row">
+                <button class="btn btn-secondary btn-small" id="manage-groups-btn">🗂️ Groups</button>
+                <button class="btn btn-secondary btn-small" id="global-analytics-btn">📈 Analytics</button>
+                <button class="btn btn-secondary btn-small" id="settings-btn">⚙️ Settings</button>
             </div>
-            <div>
-              <label>Qty</label>
-              <input id="itemQty" type="number" min="1" step="1" value="1" required />
-            </div>
-            <div>
-              <label>Photo</label>
-              <input id="itemPhoto" type="file" accept="image/*" />
-            </div>
-            <div style="grid-column: 1 / -1; display:flex; gap:.5rem; align-items:center; flex-wrap:wrap">
-              <button type="submit" class="primary">Add Item</button>
-              <button type="button" id="scanBtn">Scan Barcode</button>
-              <span class="note">Scanning uses your camera (HTTPS required). If a product is found via OpenFoodFacts, we’ll prefill details.</span>
-            </div>
-          </form>
+        </header>
 
-          <div class="items" id="items"></div>
-          <div class="empty" id="emptyMsg" style="display:none">No items yet. Add your first item above 👆</div>
+        <div class="analytics-header">
+            <div class="metric">Total Items <span id="total-items">0</span></div>
+            <div class="metric">Total Spent <span id="total-spent">$0.00</span></div>
+            <div class="metric">Avg. Price <span id="avg-price">$0.00</span></div>
         </div>
-      </section>
 
-      <aside class="panel">
-        <h2>Live List Analytics</h2>
-        <div class="content">
-          <div class="cards">
-            <div class="card"><div class="k">Total Items</div><div class="v" id="m_totalItems">0</div></div>
-            <div class="card"><div class="k">Total Spent</div><div class="v" id="m_totalSpent">$0.00</div></div>
-            <div class="card"><div class="k">Avg Price / Item</div><div class="v" id="m_avgPrice">$0.00</div></div>
-          </div>
-          <p class="note" style="margin-top:.75rem">Totals update in real-time when you add, edit, delete, or reorder items.</p>
-          <div class="foot-actions" style="margin-top:1rem">
-            <button id="groupMenuBtn2" class="ghost">Group ▾</button>
-          </div>
-        </div>
-      </aside>
+        <main>
+            <div id="barcode-scanner-container"><div id="barcode-reader"></div><button class="btn btn-danger" style="width: 100%; margin-top: 10px;" id="close-scanner-btn">Close Scanner</button></div>
+            <form class="add-item-form" id="add-item-form"><div class="form-row"><div class="form-group" style="flex-grow: 4;"><label for="item-name">Item Name</label><input type="text" id="item-name" required></div><div class="form-group"><label>&nbsp;</label><button type="button" class="btn icon-btn" id="scan-barcode-btn" title="Scan Barcode">📷</button></div></div><div class="form-row"><div class="form-group"><label for="item-price">Price</label><input type="number" id="item-price" step="0.01" min="0" required></div><div class="form-group"><label for="item-quantity">Quantity</label><input type="number" id="item-quantity" value="1" min="1" required></div></div><div class="form-group"><label for="item-photo">Price Tag Photo (Optional)</label><input type="file" id="item-photo" accept="image/*"><img id="photo-preview" src="" alt="Photo Preview"></div><button type="submit" class="btn" style="width: 100%;">Add Item</button></form>
+            <h2 id="current-list-title"></h2>
+            <div id="item-list"></div>
+        </main>
     </div>
-  </div>
 
-  <!-- Edit Item Modal -->
-  <dialog id="editModal">
-    <div class="modal-head"><h3>Edit Item</h3><div class="spacer"></div></div>
-    <div class="modal-body">
-      <form id="editItemForm" class="item-form">
-        <div>
-          <label>Item name</label>
-          <input id="e_name" required />
-        </div>
-        <div>
-          <label>Price</label>
-          <input id="e_price" type="number" step="0.01" min="0" required />
-        </div>
-        <div>
-          <label>Qty</label>
-          <input id="e_qty" type="number" min="1" step="1" required />
-        </div>
-        <div>
-          <label>Replace photo</label>
-          <input id="e_photo" type="file" accept="image/*" />
-        </div>
-        <div style="grid-column:1/-1">
-          <img id="e_preview" alt="Preview" style="max-height:90px; border-radius:.5rem; display:none; border:1px solid #263147"/>
-        </div>
-      </form>
-    </div>
-    <div class="modal-foot">
-      <button id="editCancel" class="ghost">Cancel</button>
-      <button id="editSave" class="primary">Save</button>
-    </div>
-  </dialog>
+    <!-- MODALS -->
+    <div id="new-list-modal" class="modal"><div class="modal-content"><div class="modal-header"><h2>Create New List</h2><span class="close-btn">&times;</span></div><div class="modal-body"><input type="text" id="new-list-name" placeholder="e.g., Weekly Groceries"></div><div class="modal-footer"><button class="btn" id="create-list-btn" style="width:100%;">Create List</button></div></div></div>
+    <div id="edit-item-modal" class="modal"><div class="modal-content"><div class="modal-header"><h2>Edit Item</h2><span class="close-btn">&times;</span></div><div class="modal-body"><input type="hidden" id="edit-item-id"><div class="form-group"><label for="edit-item-name">Item Name</label><input type="text" id="edit-item-name" required></div><div class="form-row"><div class="form-group"><label for="edit-item-price">Price</label><input type="number" id="edit-item-price" step="0.01" min="0" required></div><div class="form-group"><label for="edit-item-quantity">Quantity</label><input type="number" id="edit-item-quantity" min="1" required></div></div><div class="form-group"><label for="edit-item-photo">Change Photo</label><input type="file" id="edit-item-photo" accept="image/*"><img id="edit-photo-preview" src="" style="max-width:100px; margin-top:10px; border-radius: var(--border-radius);"></div></div><div class="modal-footer"><button class="btn" id="save-item-changes-btn" style="width:100%;">Save Changes</button></div></div></div>
+    <div id="manage-groups-modal" class="modal"><div class="modal-content"><div class="modal-header"><h2>Manage Groups</h2><span class="close-btn">&times;</span></div><div class="modal-body"><h3>Create New Group</h3><div class="form-row"><input type="text" id="new-group-name" placeholder="e.g., Vacation Prep"><button class="btn" id="create-group-btn">Create</button></div><hr style="margin: 20px 0;"><h3>Assign Lists to Groups</h3><ul id="list-group-assignments" class="management-list"></ul></div></div></div>
+    <div id="global-analytics-modal" class="modal"><div class="modal-content"><div class="modal-header"><h2>Global Analytics</h2><span class="close-btn">&times;</span></div><div class="modal-body"><div class="chart-container"><canvas id="spending-chart"></canvas></div><div id="global-analytics-content"></div></div><div class="modal-footer"><button class="btn btn-secondary" id="filter-analytics-btn">Filter Data</button><button class="btn" id="export-view-json-btn">Export View (JSON)</button><button class="btn" id="export-view-csv-btn">Export View (CSV)</button></div></div></div>
+    <div id="analytics-filter-modal" class="modal"><div class="modal-content"><div class="modal-header"><h2>Filter Analytics Data</h2><span class="close-btn">&times;</span></div><div id="filter-options-list" class="modal-body"></div><div class="modal-footer"><button class="btn" id="apply-analytics-filter-btn" style="width:100%;">Apply Filter</button></div></div></div>
+    <div id="settings-modal" class="modal"><div class="modal-content"><div class="modal-header"><h2>Settings & Data</h2><span class="close-btn">&times;</span></div><div class="modal-body"><h3>Data Management</h3><p>Backup all lists, groups, and items to a single file.</p><button class="btn" id="backup-all-data-btn" style="width:100%;">Backup All Data</button><br><br><p>Import data from a backup file. This will merge with your existing data.</p><label for="import-data-input" class="btn btn-secondary" style="text-align:center; display:block;">Select Import File</label><input type="file" id="import-data-input" accept=".json" style="display:none;"></div></div></div>
 
-  <!-- Analytics Modal (checkbox menus for groups and lists, with search & select tools) -->
-  <dialog id="analyticsModal">
-    <div class="modal-head"><h3>Global Analytics</h3><div class="spacer"></div></div>
-    <div class="modal-body">
-      <p class="note">Filter by group and/or list. Chart shows each list’s total spend plotted by its creation date (ordered by createdAt).</p>
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- App State ---
+        let appData = { lists: {}, groups: {}, currentListId: null };
+        let currentAnalyticsFilter = { type: 'all', ids: { groups: [], lists: [] } };
+        let sortableInstance = null, html5QrCode = null, analyticsChart = null;
 
-      <div class="filters">
-        <div>
-          <div class="filter-tools"><strong>Groups</strong> <button type="button" id="gAll" class="ghost">All</button> <button type="button" id="gNone" class="ghost">None</button></div>
-          <div id="groupFilterHost"></div>
-        </div>
-        <div>
-          <div class="filter-tools">
-            <strong>Lists</strong>
-            <input id="listSearch" placeholder="Search lists…" style="flex:1; min-width:150px" />
-            <button type="button" id="lAll" class="ghost">All</button>
-            <button type="button" id="lNone" class="ghost">None</button>
-            <button type="button" id="lOnlyCurrent" class="ghost">Only Current</button>
-          </div>
-          <div id="listFilterHost"></div>
-        </div>
-      </div>
+        // --- DOM Elements ---
+        const listSelector = document.getElementById('list-selector');
+        const currentListTitle = document.getElementById('current-list-title');
+        const itemListEl = document.getElementById('item-list');
+        const addItemForm = document.getElementById('add-item-form');
+        const totalItemsEl = document.getElementById('total-items');
+        const totalSpentEl = document.getElementById('total-spent');
+        const avgPriceEl = document.getElementById('avg-price');
+        // Buttons
+        const newListBtn = document.getElementById('new-list-btn');
+        const deleteListBtn = document.getElementById('delete-list-btn');
+        const manageGroupsBtn = document.getElementById('manage-groups-btn');
+        const globalAnalyticsBtn = document.getElementById('global-analytics-btn');
+        const settingsBtn = document.getElementById('settings-btn');
+        const scanBarcodeBtn = document.getElementById('scan-barcode-btn');
+        const closeScannerBtn = document.getElementById('close-scanner-btn');
+        // Modals
+        const newListModal = document.getElementById('new-list-modal');
+        const editItemModal = document.getElementById('edit-item-modal');
+        const manageGroupsModal = document.getElementById('manage-groups-modal');
+        const globalAnalyticsModal = document.getElementById('global-analytics-modal');
+        const analyticsFilterModal = document.getElementById('analytics-filter-modal');
+        const settingsModal = document.getElementById('settings-modal');
+        
+        // --- Data Functions ---
+        const loadData = () => { if (localStorage.getItem('shoppingAppV3')) appData = JSON.parse(localStorage.getItem('shoppingAppV3')); };
+        const saveData = () => localStorage.setItem('shoppingAppV3', JSON.stringify(appData));
+        const generateId = () => Date.now().toString() + Math.random().toString(36).substr(2, 9);
 
-      <canvas id="analyticsChart" height="130"></canvas>
-      <div id="summary" style="margin-top:.75rem"></div>
-    </div>
-    <div class="modal-foot">
-      <button id="analyticsClose" class="ghost">Close</button>
-      <button id="applyFilters" class="primary">Apply Filters</button>
-    </div>
-  </dialog>
-
-  <!-- Barcode Scanner Modal -->
-  <dialog id="scanModal">
-    <div class="modal-head"><h3>Scan Barcode</h3><div class="spacer"></div></div>
-    <div class="modal-body">
-      <div id="reader" style="width: 100%"></div>
-      <div id="scanStatus" class="note" style="margin-top:.5rem"></div>
-    </div>
-    <div class="modal-foot">
-      <button id="stopScan" class="ghost">Stop</button>
-    </div>
-  </dialog>
-
-  <!-- Group Menu (checkbox menu for assigning the CURRENT list’s group) -->
-  <dialog id="groupMenu">
-    <div class="modal-head"><h3>Group for Current List</h3><div class="spacer"></div></div>
-    <div class="modal-body">
-      <div class="note" style="margin-bottom:.5rem">Pick exactly one (we’ll auto-uncheck others). Use “Ungrouped” to remove the list from any group.</div>
-      <div id="groupMenuHost"></div>
-      <div style="margin-top:.75rem; display:flex; gap:.5rem; align-items:center; flex-wrap:wrap">
-        <input id="gmNewName" placeholder="New group name"/>
-        <button id="gmAddGroup" class="ghost" type="button">Add Group</button>
-      </div>
-    </div>
-    <div class="modal-foot">
-      <button id="gmClose" class="ghost">Close</button>
-      <button id="gmSave" class="primary">Save</button>
-    </div>
-  </dialog>
-
-  <!-- External libs via CDN (cached by the inlined Service Worker for offline after first load) -->
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://unpkg.com/html5-qrcode/html5-qrcode.min.js"></script>
-
-  <script>
-    /********************
-     * Utility helpers  *
-     ********************/
-    const $ = sel => document.querySelector(sel);
-    const $$ = sel => Array.from(document.querySelectorAll(sel));
-    const nowISO = () => new Date().toISOString();
-    const fmtMoney = (n) => `$${(Number(n) || 0).toFixed(2)}`;
-    const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Math.random().toString(36).slice(2));
-
-    /********************
-     * Persistence       *
-     ********************/
-    const STORAGE_KEY = 'appData.shopping-tracker.v1';
-
-    function loadData(){
-      try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) }catch(e){ return null }
-    }
-    function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); }
-
-    // default seed
-    let appData = loadData() || {
-      groups: [/* {id, name, createdAt} */],
-      lists: [/* {id, name, groupId|null, createdAt, updatedAt, items:[{id, name, price, qty, photoBase64?, imageUrl?, createdAt, updatedAt}] } */],
-      selectedListId: null
-    };
-
-    // Ensure at least one list exists
-    if(!appData.lists.length){
-      const defaultList = { id: uid(), name: 'My First List', groupId: null, createdAt: nowISO(), updatedAt: nowISO(), items: [] };
-      appData.lists.push(defaultList);
-      appData.selectedListId = defaultList.id;
-      saveData();
-    } else if(!appData.selectedListId){
-      appData.selectedListId = appData.lists[0].id; saveData();
-    }
-
-    function getCurrentList(){ return appData.lists.find(l => l.id === appData.selectedListId); }
-
-    /********************
-     * Group & List UI   *
-     ********************/
-    const listSelector = $('#listSelector');
-
-    function renderListSelector(){
-      const groupsById = Object.fromEntries(appData.groups.map(g => [g.id, g]));
-      const grouped = new Map();
-      // prepare groups
-      appData.groups.forEach(g => grouped.set(g.id, { label: g.name, lists: [] }));
-      // ungrouped bucket = null
-      grouped.set(null, { label: 'Ungrouped', lists: [] });
-
-      appData.lists
-        .slice().sort((a,b)=> new Date(a.createdAt) - new Date(b.createdAt))
-        .forEach(list => {
-          const key = list.groupId ?? null;
-          if(!grouped.has(key)) grouped.set(key, { label: groupsById[key]?.name || 'Ungrouped', lists: [] });
-          grouped.get(key).lists.push(list);
-        });
-
-      // Build select
-      listSelector.innerHTML = '';
-      for(const [gid, bucket] of grouped){
-        if(bucket.lists.length === 0) continue; // hide empty groups except show Ungrouped only if it has lists
-        const og = document.createElement('optgroup');
-        og.label = bucket.label;
-        bucket.lists.forEach(list => {
-          const opt = document.createElement('option');
-          opt.value = list.id; opt.textContent = list.name; if(list.id === appData.selectedListId) opt.selected = true; og.appendChild(opt);
-        });
-        listSelector.appendChild(og);
-      }
-    }
-
-    listSelector.addEventListener('change', () => {
-      appData.selectedListId = listSelector.value; saveData(); renderItems(); updateMetrics();
-    });
-
-    $('#newGroup').addEventListener('click', () => {
-      const name = prompt('New group name:');
-      if(!name) return;
-      appData.groups.push({ id: uid(), name: name.trim(), createdAt: nowISO() });
-      saveData(); renderListSelector(); buildAnalyticsFilters();
-    });
-
-    $('#newList').addEventListener('click', () => {
-      const name = prompt('New list name:');
-      if(!name) return;
-      const list = { id: uid(), name: name.trim(), groupId: null, createdAt: nowISO(), updatedAt: nowISO(), items: [] };
-      appData.lists.push(list);
-      appData.selectedListId = list.id; saveData(); renderListSelector(); renderItems(); updateMetrics(); buildAnalyticsFilters();
-    });
-
-    $('#renameList').addEventListener('click', () => {
-      const list = getCurrentList(); if(!list) return;
-      const name = prompt('Rename list:', list.name);
-      if(!name) return;
-      list.name = name.trim(); list.updatedAt = nowISO(); saveData(); renderListSelector(); buildAnalyticsFilters(); updateAnalyticsChart();
-    });
-
-    $('#deleteList').addEventListener('click', () => {
-      const list = getCurrentList(); if(!list) return;
-      if(!confirm(`Delete list “${list.name}” and all its items?`)) return;
-      appData.lists = appData.lists.filter(l => l.id !== list.id);
-      if(!appData.lists.length){ // ensure at least one
-        const nl = { id: uid(), name: 'New List', groupId: null, createdAt: nowISO(), updatedAt: nowISO(), items: [] };
-        appData.lists.push(nl); appData.selectedListId = nl.id;
-      } else {
-        appData.selectedListId = appData.lists[0].id;
-      }
-      saveData(); renderListSelector(); renderItems(); updateMetrics(); buildAnalyticsFilters(); updateAnalyticsChart();
-    });
-
-    /********************
-     * Group Menu (checkbox menu)
-     ********************/
-    const groupMenu = $('#groupMenu');
-    const groupMenuBtn = $('#groupMenuBtn');
-    const groupMenuBtn2 = $('#groupMenuBtn2');
-
-    [groupMenuBtn, groupMenuBtn2].forEach(btn => btn && btn.addEventListener('click', openGroupMenu));
-
-    function openGroupMenu(){
-      const host = $('#groupMenuHost'); host.innerHTML = '';
-      // Build checkbox list with Ungrouped
-      const current = getCurrentList();
-      const entries = [{ id: 'null', name: 'Ungrouped' }, ...appData.groups.map(g=>({id:g.id, name:g.name}))];
-      entries.forEach(e => {
-        const row = document.createElement('label');
-        row.className = 'filter-row';
-        row.innerHTML = `<input type="checkbox" name="gmGroup" value="${e.id}"> <span>${escapeHtml(e.name)}</span>`;
-        const cb = row.querySelector('input');
-        const isChecked = (e.id === 'null' && !current.groupId) || (current.groupId && e.id === String(current.groupId));
-        cb.checked = !!isChecked;
-        // Enforce single selection
-        cb.addEventListener('change', (ev)=>{
-          if(ev.target.checked){
-            $$('#groupMenuHost input[type="checkbox"]').forEach(x => { if(x!==cb) x.checked = false; });
-          }
-        });
-        host.appendChild(row);
-      });
-      groupMenu.showModal();
-    }
-
-    $('#gmAddGroup').addEventListener('click', ()=>{
-      const name = $('#gmNewName').value.trim();
-      if(!name) return;
-      appData.groups.push({ id: uid(), name, createdAt: nowISO() });
-      $('#gmNewName').value = '';
-      saveData(); renderListSelector(); buildAnalyticsFilters(); openGroupMenu();
-    });
-
-    $('#gmSave').addEventListener('click', ()=>{
-      const list = getCurrentList(); if(!list) return;
-      const picked = $$('#groupMenuHost input[type="checkbox"]').find(cb => cb.checked);
-      const val = picked ? picked.value : 'null';
-      list.groupId = (val === 'null') ? null : val;
-      list.updatedAt = nowISO();
-      saveData(); renderListSelector(); buildAnalyticsFilters(); updateAnalyticsChart(); groupMenu.close();
-    });
-
-    $('#gmClose').addEventListener('click', ()=> groupMenu.close());
-
-    /********************
-     * Items CRUD        *
-     ********************/
-    const itemsHost = $('#items');
-    const emptyMsg = $('#emptyMsg');
-
-    function renderItems(){
-      const list = getCurrentList();
-      itemsHost.innerHTML = '';
-      if(!list || !list.items.length){ emptyMsg.style.display='block'; return } else { emptyMsg.style.display='none'; }
-      list.items.forEach(item => itemsHost.appendChild(renderItemRow(item)));
-      mountSortable();
-    }
-
-    function renderItemRow(item){
-      const row = document.createElement('div');
-      row.className = 'item'; row.dataset.id = item.id;
-      row.innerHTML = `
-        <div class="drag" title="Drag to reorder">☰</div>
-        <div class="name">${escapeHtml(item.name)} <div class="unit">${fmtMoney(item.price)} × ${item.qty}</div></div>
-        <div class="total">${fmtMoney(item.price * item.qty)}</div>
-        <div class="thumb">${item.photoBase64 || item.imageUrl ? `<img src="${item.photoBase64 || item.imageUrl}" alt="${escapeHtml(item.name)}"/>` : ''}</div>
-        <div class="actions">
-          <button class="ghost" data-act="edit">Edit</button>
-          <button class="warn" data-act="del">Delete</button>
-        </div>`;
-
-      // On small screens, actions are stacked at the end; grid handles layout via media queries
-      row.querySelector('[data-act="edit"]').addEventListener('click', ()=> openEdit(item.id));
-      row.querySelector('[data-act="del"]').addEventListener('click', ()=> deleteItem(item.id));
-      return row;
-    }
-
-    function mountSortable(){
-      new Sortable(itemsHost, {
-        animation: 150,
-        handle: '.drag',
-        onEnd: function(evt){
-          const list = getCurrentList();
-          if(!list) return;
-          const ids = $$('#items .item').map(el => el.dataset.id);
-          list.items.sort((a,b)=> ids.indexOf(a.id) - ids.indexOf(b.id));
-          list.updatedAt = nowISO(); saveData(); updateMetrics();
+        // --- Initialization ---
+        function initialize() {
+            loadData();
+            if (Object.keys(appData.lists).length === 0) {
+                const firstListId = generateId();
+                appData.lists[firstListId] = { id: firstListId, name: "My First List", items: [], createdAt: new Date().toISOString(), groupId: null };
+                appData.currentListId = firstListId;
+            }
+            if (!appData.groups) appData.groups = {};
+            appData.currentListId = appData.currentListId || Object.keys(appData.lists)[0] || null;
+            
+            html5QrCode = new Html5Qrcode("barcode-reader");
+            setupEventListeners();
+            initializeSortable();
+            renderUI();
         }
-      });
-    }
 
-    $('#addItemForm').addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const list = getCurrentList(); if(!list) return;
-      const name = $('#itemName').value.trim();
-      const price = Number($('#itemPrice').value);
-      const qty = Math.max(1, parseInt($('#itemQty').value || '1', 10));
-      let photoBase64 = null;
-      const file = $('#itemPhoto').files[0];
-      if(file){ photoBase64 = await fileToBase64(file); }
-
-      const item = { id: uid(), name, price, qty, photoBase64, imageUrl: null, createdAt: nowISO(), updatedAt: nowISO() };
-      list.items.push(item); list.updatedAt = nowISO(); saveData();
-      e.target.reset(); renderItems(); updateMetrics();
-    });
-
-    function deleteItem(id){
-      const list = getCurrentList(); if(!list) return;
-      if(!confirm('Delete this item?')) return;
-      list.items = list.items.filter(i => i.id !== id);
-      list.updatedAt = nowISO(); saveData(); renderItems(); updateMetrics();
-    }
-
-    // Edit modal
-    const editModal = $('#editModal');
-    let editingItemId = null;
-
-    function openEdit(id){
-      const list = getCurrentList(); if(!list) return;
-      const item = list.items.find(i=>i.id===id); if(!item) return;
-      editingItemId = id;
-      $('#e_name').value = item.name;
-      $('#e_price').value = item.price;
-      $('#e_qty').value = item.qty;
-      const img = $('#e_preview');
-      if(item.photoBase64 || item.imageUrl){ img.src = item.photoBase64 || item.imageUrl; img.style.display='inline-block'; } else { img.style.display='none'; }
-      editModal.showModal();
-    }
-
-    $('#editCancel').addEventListener('click', ()=> editModal.close());
-    $('#editSave').addEventListener('click', async ()=>{
-      const list = getCurrentList(); if(!list) return;
-      const item = list.items.find(i=>i.id===editingItemId); if(!item) return;
-      item.name = $('#e_name').value.trim();
-      item.price = Number($('#e_price').value);
-      item.qty = Math.max(1, parseInt($('#e_qty').value || '1', 10));
-      const file = $('#e_photo').files[0];
-      if(file){ item.photoBase64 = await fileToBase64(file); item.imageUrl = null; }
-      item.updatedAt = nowISO(); list.updatedAt = nowISO(); saveData();
-      editModal.close(); renderItems(); updateMetrics();
-      $('#e_photo').value = '';
-    });
-
-    async function fileToBase64(file){
-      return new Promise((resolve,reject)=>{
-        const fr = new FileReader();
-        fr.onload = ()=> resolve(fr.result);
-        fr.onerror = reject; fr.readAsDataURL(file);
-      });
-    }
-
-    function escapeHtml(s){
-      return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
-    }
-
-    /********************
-     * Analytics (live)  *
-     ********************/
-    function updateMetrics(){
-      const list = getCurrentList();
-      if(!list){ $('#m_totalItems').textContent='0'; $('#m_totalSpent').textContent='$0.00'; $('#m_avgPrice').textContent='$0.00'; return; }
-      const totalQty = list.items.reduce((s,i)=> s + Number(i.qty||0), 0);
-      const totalSpent = list.items.reduce((s,i)=> s + (Number(i.price||0) * Number(i.qty||0)), 0);
-      const avgPrice = totalQty ? (totalSpent / totalQty) : 0;
-      $('#m_totalItems').textContent = String(totalQty);
-      $('#m_totalSpent').textContent = fmtMoney(totalSpent);
-      $('#m_avgPrice').textContent = fmtMoney(avgPrice);
-    }
-
-    /********************
-     * Global Analytics  *
-     ********************/
-    const analyticsModal = $('#analyticsModal');
-    const openAnalyticsBtn = $('#openAnalytics');
-    const analyticsClose = $('#analyticsClose');
-    const applyFiltersBtn = $('#applyFilters');
-    let chart; let activeFilters = { groups: new Set(), lists: new Set() };
-
-    openAnalyticsBtn.addEventListener('click', ()=>{ buildAnalyticsFilters(); updateAnalyticsChart(); analyticsModal.showModal(); });
-    analyticsClose.addEventListener('click', ()=> analyticsModal.close());
-    applyFiltersBtn.addEventListener('click', ()=> { collectFiltersFromUI(); updateAnalyticsChart(); });
-
-    function buildAnalyticsFilters(){
-      // Groups
-      const gHost = $('#groupFilterHost'); gHost.innerHTML = '';
-      appData.groups.forEach(g => gHost.appendChild(makeFilterRow('group', g.id, g.name, activeFilters.groups.has(g.id))));
-
-      // Lists
-      const lHost = $('#listFilterHost'); lHost.innerHTML = '';
-      appData.lists.forEach(l => lHost.appendChild(makeFilterRow('list', l.id, l.name, activeFilters.lists.has(l.id))));
-
-      // Wire tools
-      $('#gAll').onclick = ()=> { activeFilters.groups = new Set(appData.groups.map(g=>g.id)); syncFiltersToUI(); };
-      $('#gNone').onclick = ()=> { activeFilters.groups.clear(); syncFiltersToUI(); };
-      $('#lAll').onclick = ()=> { activeFilters.lists = new Set(appData.lists.map(l=>l.id)); syncFiltersToUI(); };
-      $('#lNone').onclick = ()=> { activeFilters.lists.clear(); syncFiltersToUI(); };
-      $('#lOnlyCurrent').onclick = ()=> { const cur = getCurrentList(); activeFilters.lists = new Set(cur? [cur.id] : []); syncFiltersToUI(); };
-
-      // Search
-      const search = $('#listSearch');
-      search.oninput = ()=>{
-        const q = search.value.trim().toLowerCase();
-        $$('#listFilterHost label').forEach(row=>{
-          const name = row.querySelector('span').textContent.toLowerCase();
-          row.style.display = name.includes(q) ? 'flex' : 'none';
-        });
-      };
-
-      // Initial sync
-      syncFiltersToUI();
-    }
-
-    function makeFilterRow(kind, id, label, checked){
-      const row = document.createElement('label'); row.className='filter-row';
-      row.innerHTML = `<input type="checkbox" data-kind="${kind}" value="${id}" ${checked? 'checked':''}/> <span>${escapeHtml(label)}</span>`;
-      row.querySelector('input').addEventListener('change', (e)=>{
-        const set = (kind==='group') ? activeFilters.groups : activeFilters.lists;
-        if(e.target.checked) set.add(e.target.value); else set.delete(e.target.value);
-      });
-      return row;
-    }
-
-    function syncFiltersToUI(){
-      // Check/uncheck DOM boxes according to activeFilters
-      $$('#groupFilterHost input[type="checkbox"]').forEach(cb => cb.checked = activeFilters.groups.has(cb.value));
-      $$('#listFilterHost input[type="checkbox"]').forEach(cb => cb.checked = activeFilters.lists.has(cb.value));
-    }
-
-    function collectFiltersFromUI(){
-      activeFilters = { groups: new Set(), lists: new Set() };
-      $$('#groupFilterHost input[type="checkbox"]').forEach(cb => { if(cb.checked) activeFilters.groups.add(cb.value); });
-      $$('#listFilterHost input[type="checkbox"]').forEach(cb => { if(cb.checked) activeFilters.lists.add(cb.value); });
-    }
-
-    function listIncluded(list){
-      // If no filters selected at all => include everything
-      const noneSelected = !activeFilters.groups.size && !activeFilters.lists.size;
-      if(noneSelected) return true;
-      const inPickedList = activeFilters.lists.has(list.id);
-      const inPickedGroup = list.groupId && activeFilters.groups.has(list.groupId);
-      return inPickedList || inPickedGroup;
-    }
-
-    function updateAnalyticsChart(){
-      const ctx = $('#analyticsChart').getContext('2d');
-      const included = appData.lists.filter(listIncluded).slice().sort((a,b)=> new Date(a.createdAt) - new Date(b.createdAt));
-      const labels = included.map(l => new Date(l.createdAt).toLocaleString());
-      const totals = included.map(l => l.items.reduce((s,i)=> s + (Number(i.price||0)*Number(i.qty||0)), 0));
-
-      if(chart){ chart.destroy(); }
-      chart = new Chart(ctx, {
-        type: 'line',
-        data: { labels, datasets: [{ label: 'Total Spend per List (by created date)', data: totals, tension: .25 }] },
-        options: {
-          plugins: { legend: { display: true } },
-          scales: { y: { beginAtZero:true } },
-          responsive: true,
+        // --- UI Rendering ---
+        function renderUI() {
+            const currentList = appData.lists[appData.currentListId];
+            currentListTitle.textContent = currentList ? currentList.name : "No lists exist.";
+            if (!currentList) itemListEl.innerHTML = '';
+            renderListSelector();
+            renderItems();
+            updateHeaderAnalytics();
         }
-      });
 
-      // Summary stats
-      const count = included.length;
-      const sum = totals.reduce((a,b)=>a+b,0);
-      const avg = count? sum / count : 0;
-      const max = totals.length? Math.max(...totals): 0;
-      const min = totals.length? Math.min(...totals): 0;
-      $('#summary').innerHTML = `
-        <div class="cards" style="margin-top:.5rem">
-          <div class="card"><div class="k">Lists Included</div><div class="v">${count}</div></div>
-          <div class="card"><div class="k">Combined Spend</div><div class="v">${fmtMoney(sum)}</div></div>
-          <div class="card"><div class="k">Average per List</div><div class="v">${fmtMoney(avg)}</div></div>
-          <div class="card"><div class="k">Highest List Total</div><div class="v">${fmtMoney(max)}</div></div>
-          <div class="card"><div class="k">Lowest List Total</div><div class="v">${fmtMoney(min)}</div></div>
-        </div>`;
-    }
-
-    /********************
-     * Backup / Restore  *
-     ********************/
-    $('#backupBtn').addEventListener('click', ()=>{
-      const blob = new Blob([JSON.stringify(appData, null, 2)], {type:'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `shopping-tracker-backup-${new Date().toISOString().slice(0,19)}.json`;
-      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    });
-
-    $('#restoreFile').addEventListener('change', async (e)=>{
-      const file = e.target.files[0]; if(!file) return; 
-      try{
-        const text = await file.text();
-        const incoming = JSON.parse(text);
-        mergeImport(incoming);
-        saveData(); renderListSelector(); renderItems(); updateMetrics(); buildAnalyticsFilters(); updateAnalyticsChart();
-        alert('Import complete (merged).');
-      }catch(err){
-        console.error(err); alert('Invalid JSON file.');
-      }finally{ e.target.value = '' }
-    });
-
-    function mergeImport(incoming){
-      if(!incoming || typeof incoming !== 'object') return;
-      const nameTaken = (arr, name) => arr.some(x => x.name === name);
-      // Groups
-      const idMapGroups = new Map();
-      (incoming.groups || []).forEach(g => {
-        let name = g.name || 'Imported Group';
-        while(nameTaken(appData.groups, name)) name = name + ' (Imported)';
-        const newG = { id: uid(), name, createdAt: g.createdAt || nowISO() };
-        idMapGroups.set(g.id, newG.id); appData.groups.push(newG);
-      });
-      // Lists
-      (incoming.lists || []).forEach(l => {
-        let name = l.name || 'Imported List';
-        while(nameTaken(appData.lists, name)) name = name + ' (Imported)';
-        const newL = { id: uid(), name, groupId: l.groupId ? (idMapGroups.get(l.groupId) || null) : null, createdAt: l.createdAt || nowISO(), updatedAt: l.updatedAt || nowISO(), items: [] };
-        // Items
-        (l.items||[]).forEach(i => {
-          newL.items.push({ id: uid(), name: i.name || 'Item', price: Number(i.price||0), qty: Math.max(1, Number(i.qty||1)), photoBase64: i.photoBase64||null, imageUrl: i.imageUrl||null, createdAt: i.createdAt || nowISO(), updatedAt: i.updatedAt || nowISO() });
-        });
-        appData.lists.push(newL);
-      });
-    }
-
-    /********************
-     * Barcode scanning  *
-     ********************/
-    const scanModal = $('#scanModal');
-    const scanBtn = $('#scanBtn');
-    const stopScanBtn = $('#stopScan');
-    let html5QrcodeScanner = null; let inProgress = false; let latestScannedImageUrl = null;
-
-    scanBtn.addEventListener('click', () => {
-      $('#scanStatus').textContent = 'Initializing camera…';
-      scanModal.showModal();
-      startScanner();
-    });
-
-    stopScanBtn.addEventListener('click', ()=> stopScanner());
-
-    async function startScanner(){
-      try{
-        const readerDivId = 'reader';
-        html5QrcodeScanner = new Html5Qrcode(readerDivId);
-        const devices = await Html5Qrcode.getCameras();
-        const cameraId = devices?.[0]?.id; // default first camera
-        if(!cameraId) throw new Error('No camera found');
-        await html5QrcodeScanner.start(
-          { deviceId: { exact: cameraId } },
-          { fps: 10, qrbox: 250 },
-          (decodedText) => {
-            if(inProgress) return; inProgress = true;
-            $('#scanStatus').textContent = `Scanned: ${decodedText} — looking up…`;
-            fetchOpenFoodFacts(decodedText).finally(()=>{ inProgress = false; });
-          },
-          (errorMessage) => { /* ignore scan errors */ }
-        );
-        $('#scanStatus').textContent = 'Point your camera at a barcode…';
-      }catch(err){
-        console.error(err);
-        $('#scanStatus').textContent = 'Unable to access camera. Make sure you are using HTTPS and granted permission.';
-      }
-    }
-
-    async function fetchOpenFoodFacts(barcode){
-      try{
-        const url = `https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(barcode)}.json`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if(data?.status === 1){
-          const p = data.product || {};
-          // Prefill the add-item form (non-destructive)
-          $('#itemName').value = p.product_name || p.generic_name || $('#itemName').value;
-          if(p.image_front_url){
-            latestScannedImageUrl = p.image_front_url; // temp, referenced when adding item
-            $('#scanStatus').textContent = `Found: ${$('#itemName').value}`;
-          }else{
-            latestScannedImageUrl = null; $('#scanStatus').textContent = 'Found product but no image.';
-          }
-          $('#itemPrice').focus();
-        }else{
-          $('#scanStatus').textContent = 'No product found for this barcode. You can still enter manually.';
+        function renderListSelector() {
+            listSelector.innerHTML = '';
+            const sortedGroups = Object.values(appData.groups).sort((a,b) => a.name.localeCompare(b.name));
+            const groupedLists = {};
+            sortedGroups.forEach(group => groupedLists[group.id] = []);
+            const ungroupedLists = [];
+            Object.values(appData.lists).forEach(list => (list.groupId && appData.groups[list.groupId]) ? groupedLists[list.groupId].push(list) : ungroupedLists.push(list));
+            sortedGroups.forEach(group => {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = group.name;
+                groupedLists[group.id].sort((a,b) => a.name.localeCompare(b.name)).forEach(list => optgroup.appendChild(createOption(list)));
+                listSelector.appendChild(optgroup);
+            });
+            if (ungroupedLists.length > 0) {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = "Ungrouped";
+                ungroupedLists.sort((a,b) => a.name.localeCompare(b.name)).forEach(list => optgroup.appendChild(createOption(list)));
+                listSelector.appendChild(optgroup);
+            }
+            function createOption(list) { const opt = document.createElement('option'); opt.value = list.id; opt.textContent = list.name; if (list.id === appData.currentListId) opt.selected = true; return opt; }
+            deleteListBtn.style.display = Object.keys(appData.lists).length > 0 ? 'flex' : 'none';
         }
-      }catch(err){
-        console.error(err); $('#scanStatus').textContent = 'Lookup failed (offline or API error). Try again or enter manually.';
-      }
-    }
+        
+        function renderItems() {
+            itemListEl.innerHTML = '';
+            const currentList = appData.lists[appData.currentListId];
+            if (!currentList) return;
+            currentList.items.forEach(item => {
+                const itemCard = document.createElement('div');
+                itemCard.className = 'item-card'; itemCard.dataset.id = item.id;
+                const quantityText = item.quantity > 1 ? ` (x${item.quantity})` : '';
+                itemCard.innerHTML = `<span class="drag-handle" title="Drag to reorder">⠿</span><img src="${item.photo || 'https://via.placeholder.com/60'}" alt="${item.name}"><div class="item-info"><h3>${item.name}${quantityText}</h3><p>$${(parseFloat(item.price) * item.quantity).toFixed(2)}</p></div><div class="item-actions"><button class="btn icon-btn btn-secondary edit-item-btn" title="Edit Item">✏️</button><button class="btn icon-btn btn-danger delete-item-btn" title="Delete Item">🗑️</button></div>`;
+                itemListEl.appendChild(itemCard);
+            });
+        }
+        
+        function updateHeaderAnalytics() {
+            const currentList = appData.lists[appData.currentListId];
+            if (!currentList) { totalItemsEl.textContent = '0'; totalSpentEl.textContent = '$0.00'; avgPriceEl.textContent = '$0.00'; return; }
+            const items = currentList.items;
+            const totalIndividualItems = items.reduce((sum, item) => sum + item.quantity, 0);
+            const totalSpent = items.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
+            const avgPrice = totalIndividualItems > 0 ? totalSpent / totalIndividualItems : 0;
+            totalItemsEl.textContent = totalIndividualItems; totalSpentEl.textContent = `$${totalSpent.toFixed(2)}`; avgPriceEl.textContent = `$${avgPrice.toFixed(2)}`;
+        }
 
-    // On submit, if user didn’t upload a photo and we have scanned image, attach it
-    $('#addItemForm').addEventListener('submit', ()=>{
-      const list = getCurrentList(); if(!list) return;
-      const last = list.items[list.items.length-1];
-      if(last && !last.photoBase64 && latestScannedImageUrl && !last.imageUrl){
-        last.imageUrl = latestScannedImageUrl; saveData(); renderItems(); updateMetrics();
-      }
-      latestScannedImageUrl = null;
-    }, { capture:true });
+        function setupEventListeners() {
+            listSelector.addEventListener('change', () => { appData.currentListId = listSelector.value; saveData(); renderUI(); });
+            addItemForm.addEventListener('submit', handleAddItem);
+            document.querySelectorAll('.modal .close-btn').forEach(btn => btn.addEventListener('click', (e) => e.target.closest('.modal').style.display = 'none'));
+            window.addEventListener('click', (e) => { document.querySelectorAll('.modal').forEach(modal => { if (e.target === modal) modal.style.display = 'none'; }); });
+            newListBtn.addEventListener('click', () => { newListModal.style.display = 'flex'; });
+            deleteListBtn.addEventListener('click', handleDeleteList);
+            manageGroupsBtn.addEventListener('click', openGroupManager);
+            globalAnalyticsBtn.addEventListener('click', () => openGlobalAnalytics());
+            settingsBtn.addEventListener('click', () => settingsModal.style.display = 'flex');
+            document.getElementById('create-list-btn').addEventListener('click', handleCreateList);
+            document.getElementById('save-item-changes-btn').addEventListener('click', handleSaveChanges);
+            document.getElementById('create-group-btn').addEventListener('click', handleCreateGroup);
+            document.getElementById('list-group-assignments').addEventListener('change', handleAssignListToGroup);
+            document.getElementById('filter-analytics-btn').addEventListener('click', openAnalyticsFilterModal);
+            document.getElementById('apply-analytics-filter-btn').addEventListener('click', handleApplyFilter);
+            document.getElementById('export-view-json-btn').addEventListener('click', () => handleExportView('json'));
+            document.getElementById('export-view-csv-btn').addEventListener('click', () => handleExportView('csv'));
+            document.getElementById('backup-all-data-btn').addEventListener('click', handleBackupAllData);
+            document.getElementById('import-data-input').addEventListener('change', handleImportData);
+            itemListEl.addEventListener('click', (e) => {
+                const deleteBtn = e.target.closest('.delete-item-btn');
+                const editBtn = e.target.closest('.edit-item-btn');
+                if (deleteBtn) handleDeleteItem(e.target.closest('.item-card').dataset.id);
+                if (editBtn) openEditItemModal(e.target.closest('.item-card').dataset.id);
+            });
+            document.getElementById('edit-item-photo').addEventListener('change', handlePhotoPreview);
+            document.getElementById('item-photo').addEventListener('change', handlePhotoPreview);
+            scanBarcodeBtn.addEventListener('click', startScanner);
+            closeScannerBtn.addEventListener('click', stopScanner);
+        }
+        
+        function initializeSortable() { if (sortableInstance) sortableInstance.destroy(); sortableInstance = new Sortable(itemListEl, { handle: '.drag-handle', animation: 150, ghostClass: 'sortable-ghost', chosenClass: 'sortable-chosen', onEnd: handleItemDragEnd }); }
+        
+        function handleAddItem(e){e.preventDefault();const t=e.target,o=t.querySelector("#item-name").value.trim(),l=parseFloat(t.querySelector("#item-price").value),i=parseInt(t.querySelector("#item-quantity").value,10),n=t.querySelector("#photo-preview");if(!o||isNaN(l)||isNaN(i)||!appData.currentListId)return void alert("Please fill out all fields correctly.");const a={id:generateId(),name:o,price:l,quantity:i,photo:n.src,createdAt:(new Date).toISOString()};appData.lists[appData.currentListId].items.push(a),saveData(),renderUI(),t.reset(),n.style.display="none",n.src=""}
+        function handleCreateList(){const e=document.getElementById("new-list-name"),t=e.value.trim();if(t){if(Object.values(appData.lists).some(e=>e.name===t))return void alert("A list with this name already exists.");const o=generateId();appData.lists[o]={id:o,name:t,items:[],createdAt:(new Date).toISOString(),groupId:null},appData.currentListId=o,saveData(),renderUI(),newListModal.style.display="none",e.value=""}}
+        function handleDeleteList(){if(!appData.currentListId)return;const e=appData.lists[appData.currentListId].name;confirm(`Are you sure you want to delete the list "${e}"?`)&&(delete appData.lists[appData.currentListId],appData.currentListId=Object.keys(appData.lists)[0]||null,saveData(),renderUI())}
+        function handleDeleteItem(e){const t=appData.lists[appData.currentListId];t&&(t.items=t.items.filter(t=>t.id!==e),saveData(),renderUI())}
+        function openEditItemModal(e){const t=appData.lists[appData.currentListId].items.find(t=>t.id===e);if(!t)return;document.getElementById("edit-item-id").value=t.id,document.getElementById("edit-item-name").value=t.name,document.getElementById("edit-item-price").value=t.price,document.getElementById("edit-item-quantity").value=t.quantity;const o=document.getElementById("edit-photo-preview");o.src=t.photo||"",o.style.display=t.photo?"block":"none",document.getElementById("edit-item-photo").value="",editItemModal.style.display="flex"}
+        function handleSaveChanges(){const e=document.getElementById("edit-item-id").value,t=appData.lists[appData.currentListId],o=t.items.findIndex(t=>t.id===e);if(-1===o)return;const l=document.getElementById("edit-item-name").value.trim(),i=parseFloat(document.getElementById("edit-item-price").value),n=parseInt(document.getElementById("edit-item-quantity").value,10);if(!l||isNaN(i)||isNaN(n))return void alert("Please fill out all fields correctly.");t.items[o].name=l,t.items[o].price=i,t.items[o].quantity=n,t.items[o].photo=document.getElementById("edit-photo-preview").src,saveData(),renderUI(),editItemModal.style.display="none"}
+        function handleItemDragEnd(e){const{oldIndex:t,newIndex:o}=e,l=appData.lists[appData.currentListId];if(!l)return;const[i]=l.items.splice(t,1);l.items.splice(o,0,i),saveData()}
+        function handlePhotoPreview(event){const t=event.target,o="edit-item-photo"===t.id?document.getElementById("edit-photo-preview"):document.getElementById("photo-preview"),l=t.files[0];if(l){const e=new FileReader;e.onload=t=>{o.src=t.target.result,o.style.display="block"},e.readAsDataURL(l)}else o.src="",o.style.display="none"}
+        function startScanner(){addItemForm.style.display="none",scannerContainer.style.display="block";const e={fps:10,qrbox:{width:250,height:150}},t=(e,t)=>{stopScanner(),fetchProductInfo(e)};html5QrCode.start({facingMode:"environment"},e,t,e=>{}).catch(e=>{alert("Could not start scanner."),stopScanner()})}
+        function stopScanner(){html5QrCode.stop().then(e=>{scannerContainer.style.display="none",addItemForm.style.display="block"}).catch(e=>{scannerContainer.style.display="none",addItemForm.style.display="block"})}
+        async function fetchProductInfo(e){alert(`Searching for barcode: ${e}...`);try{const t=await fetch(`https://world.openfoodfacts.org/api/v0/product/${e}.json`);if(!t.ok)throw new Error(`HTTP error! status: ${t.status}`);const o=await t.json();if(1===o.status&&o.product){const e=o.product;document.getElementById("item-name").value=e.product_name||e.generic_name||"Unknown Product";const t=document.getElementById("photo-preview"),l=e.image_front_url||e.image_url||"";l?(t.src=l,t.style.display="block"):(t.style.display="none",t.src=""),alert("Product found!")}else alert("Product not found.")}catch(e){alert("Failed to fetch product information.")}}
+        function openGroupManager(){renderGroupManager(),manageGroupsModal.style.display="flex"}
+        function renderGroupManager(){const e=document.getElementById("list-group-assignments");e.innerHTML="",Object.values(appData.lists).sort((e,t)=>e.name.localeCompare(t.name)).forEach(t=>{const o=document.createElement("li");o.className="management-item";const l=document.createElement("select");l.dataset.listId=t.id;const i=document.createElement("option");i.value="null",i.textContent="Ungrouped",l.appendChild(i),Object.values(appData.groups).sort((e,t)=>e.name.localeCompare(t.name)).forEach(e=>{const o=document.createElement("option");o.value=e.id,o.textContent=e.name,t.groupId===e.id&&(o.selected=!0),l.appendChild(o)}),o.innerHTML=`<span class="name">${t.name}</span>`,o.appendChild(l),e.appendChild(o)})}
+        function handleCreateGroup(){const e=document.getElementById("new-group-name"),t=e.value.trim();if(!t)return void alert("Group name cannot be empty.");if(Object.values(appData.groups).some(e=>e.name===t))return void alert("A group with this name already exists.");const o=generateId();appData.groups[o]={id:o,name:t},saveData(),renderGroupManager(),e.value=""}
+        function handleAssignListToGroup(e){const t=e.target,o=t.dataset.listId,l="null"===t.value?null:t.value;appData.lists[o]&&(appData.lists[o].groupId=l,saveData(),renderListSelector())}
+        
+        function getFilteredLists() {
+            if (currentAnalyticsFilter.type === 'all') return Object.values(appData.lists);
+            let listIds = new Set();
+            if (currentAnalyticsFilter.ids.lists) currentAnalyticsFilter.ids.lists.forEach(id => listIds.add(id));
+            if (currentAnalyticsFilter.ids.groups) {
+                currentAnalyticsFilter.ids.groups.forEach(groupId => {
+                    Object.values(appData.lists).forEach(list => { if (list.groupId === groupId) listIds.add(list.id); });
+                });
+            }
+            return Array.from(listIds).map(id => appData.lists[id]);
+        }
+        
+        function openGlobalAnalytics() {
+            const listsToAnalyze = getFilteredLists();
+            const contentEl = document.getElementById('global-analytics-content');
+            const chartContainer = globalAnalyticsModal.querySelector('.chart-container');
+            if (analyticsChart) analyticsChart.destroy();
+            
+            if (listsToAnalyze.length === 0) {
+                contentEl.innerHTML = "<p>No lists match the current filter.</p>";
+                chartContainer.style.display = 'none';
+                globalAnalyticsModal.style.display = 'flex';
+                return;
+            }
+            chartContainer.style.display = 'block';
 
-    async function stopScanner(){
-      try{ await html5QrcodeScanner?.stop(); }catch(e){}
-      try{ await html5QrcodeScanner?.clear(); }catch(e){}
-      html5QrcodeScanner = null; inProgress = false; scanModal.close();
-    }
+            let totalSpentAll = 0, totalItemsAll = 0, listTotals = [];
+            listsToAnalyze.forEach(list => {
+                const listSpent = list.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                const listItems = list.items.reduce((sum, item) => sum + item.quantity, 0);
+                totalSpentAll += listSpent;
+                totalItemsAll += listItems;
+                listTotals.push({ name: list.name, total: listSpent, createdAt: list.createdAt });
+            });
+            listTotals.sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt));
 
-    /********************
-     * Service Worker    *
-     * (offline-after-first-load caching for this single file + CDNs)
-     ********************/
-    if('serviceWorker' in navigator){
-      const swCode = `
-        const CACHE = 'shopping-tracker-cache-v1';
-        const toCache = [ location.href,
-          'https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js',
-          'https://cdn.jsdelivr.net/npm/chart.js',
-          'https://unpkg.com/html5-qrcode/html5-qrcode.min.js'
-        ];
-        self.addEventListener('install', event => {
-          event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(toCache)).catch(()=>{}));
-          self.skipWaiting();
-        });
-        self.addEventListener('activate', event => { event.waitUntil(self.clients.claim()); });
-        self.addEventListener('fetch', event => {
-          event.respondWith(
-            caches.match(event.request).then(resp => resp || fetch(event.request).then(r => {
-              const copy = r.clone(); caches.open(CACHE).then(cache => cache.put(event.request, copy)).catch(()=>{}); return r;
-            }).catch(()=>resp))
-          );
-        });`;
-      const blob = new Blob([swCode], {type:'text/javascript'});
-      const swUrl = URL.createObjectURL(blob);
-      navigator.serviceWorker.register(swUrl).catch(()=>{});
-    }
+            const chartLabels = listTotals.map(list => list.name);
+            const chartData = listTotals.map(list => list.total);
+            const ctx = document.getElementById('spending-chart').getContext('2d');
+            analyticsChart = new Chart(ctx, { type: 'line', data: { labels: chartLabels, datasets: [{ label: 'Total Spending', data: chartData, backgroundColor: 'rgba(142, 68, 173, 0.2)', borderColor: 'rgba(142, 68, 173, 1)', borderWidth: 2, fill: true, tension: 0.1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, title: { display: true, text: 'Spending Over Time' }}, scales: { y: { beginAtZero: true, ticks: { callback: (value) => '$' + value.toFixed(2) }}} } });
 
-    /********************
-     * Init              *
-     ********************/
-    function init(){ renderListSelector(); renderItems(); updateMetrics(); }
-    init();
-  </script>
+            const mostExpensive = [...listTotals].sort((a,b) => b.total - a.total)[0] || {name: '-', total: 0};
+            const avgListSpend = listsToAnalyze.length > 0 ? (totalSpentAll / listsToAnalyze.length).toFixed(2) : '0.00';
+            contentEl.innerHTML = `<div class="analysis-item"><span>Lists Included:</span> <span>${listsToAnalyze.length}</span></div><div class="analysis-item"><span>Total Items:</span> <span>${totalItemsAll}</span></div><div class="analysis-item"><span>Total Spending:</span> <span>$${totalSpentAll.toFixed(2)}</span></div><hr><div class="analysis-item"><span>Average List Total:</span> <span>$${avgListSpend}</span></div><div class="analysis-item"><span>Most Expensive List:</span> <span>${mostExpensive.name} ($${mostExpensive.total.toFixed(2)})</span></div>`;
+            globalAnalyticsModal.style.display = 'flex';
+        }
+
+        function openAnalyticsFilterModal() {
+            const filterOptionsList = document.getElementById('filter-options-list');
+            filterOptionsList.innerHTML = '';
+        
+            const createFilterItem = (type, item) => {
+                const div = document.createElement('div');
+                div.className = 'filter-item';
+                const label = document.createElement('label');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'filter-checkbox';
+                checkbox.dataset.type = type;
+                checkbox.value = item.id;
+                
+                if (currentAnalyticsFilter.type === 'custom') {
+                    const ids = currentAnalyticsFilter.ids[type + 's']; // e.g., currentAnalyticsFilter.ids.groups
+                    if (ids && ids.includes(item.id)) checkbox.checked = true;
+                }
+        
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(` ${item.name}`));
+                div.appendChild(label);
+                return div;
+            };
+        
+            if (Object.keys(appData.groups).length > 0) {
+                const groupsHeader = document.createElement('div');
+                groupsHeader.className = 'filter-group-header';
+                groupsHeader.textContent = 'Groups';
+                filterOptionsList.appendChild(groupsHeader);
+                Object.values(appData.groups).sort((a,b) => a.name.localeCompare(b.name)).forEach(group => filterOptionsList.appendChild(createFilterItem('group', group)));
+            }
+        
+            const listsHeader = document.createElement('div');
+            listsHeader.className = 'filter-group-header';
+            listsHeader.textContent = 'Individual Lists';
+            filterOptionsList.appendChild(listsHeader);
+            Object.values(appData.lists).sort((a,b) => a.name.localeCompare(b.name)).forEach(list => filterOptionsList.appendChild(createFilterItem('list', list)));
+        
+            analyticsFilterModal.style.display = 'flex';
+        }
+        
+        function handleApplyFilter() {
+            const selectedGroups = [];
+            const selectedLists = [];
+            document.querySelectorAll('.filter-checkbox:checked').forEach(checkbox => {
+                if (checkbox.dataset.type === 'group') selectedGroups.push(checkbox.value);
+                else selectedLists.push(checkbox.value);
+            });
+            
+            if (selectedGroups.length === 0 && selectedLists.length === 0) {
+                currentAnalyticsFilter = { type: 'all', ids: { groups: [], lists: [] } };
+            } else {
+                currentAnalyticsFilter = { type: 'custom', ids: { groups: selectedGroups, lists: selectedLists } };
+            }
+            analyticsFilterModal.style.display = 'none';
+            openGlobalAnalytics();
+        }
+
+        function downloadFile(filename, content, contentType) {
+            const a = document.createElement('a');
+            const file = new Blob([content], {type: contentType});
+            a.href = URL.createObjectURL(file);
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+        
+        function handleExportView(format) {
+            const listsToExport = getFilteredLists();
+            if (listsToExport.length === 0) return alert("No lists selected in the filter to export.");
+            
+            if (format === 'json') {
+                const exportData = { lists: {}, groups: {} };
+                listsToExport.forEach(list => {
+                    exportData.lists[list.id] = list;
+                    if (list.groupId && appData.groups[list.groupId]) exportData.groups[list.groupId] = appData.groups[list.groupId];
+                });
+                downloadFile('SmartShop_Export.json', JSON.stringify(exportData, null, 2), 'application/json');
+            } else if (format === 'csv') {
+                let csvContent = "List Name,Item Name,Price,Quantity,Photo URL\r\n";
+                listsToExport.forEach(list => {
+                    list.items.forEach(item => {
+                        csvContent += `"${list.name}","${item.name}",${item.price},${item.quantity},"${item.photo || ''}"\r\n`;
+                    });
+                });
+                downloadFile('SmartShop_Export.csv', csvContent, 'text/csv;charset=utf-8;');
+            }
+        }
+        
+        function handleBackupAllData() {
+            if (confirm("This will create a backup file of ALL your data. Continue?")) {
+                downloadFile('SmartShop_Full_Backup.json', JSON.stringify(appData, null, 2), 'application/json');
+            }
+        }
+
+        function handleImportData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (!importedData.lists) throw new Error("Invalid backup file.");
+
+                    if(importedData.groups) {
+                        Object.values(importedData.groups).forEach(importedGroup => {
+                            let groupName = importedGroup.name;
+                            let nameCounter = 1;
+                            while(Object.values(appData.groups).some(g => g.name === groupName)) groupName = `${importedGroup.name} (Imported ${nameCounter++})`;
+                            const newGroupId = generateId();
+                            appData.groups[newGroupId] = { id: newGroupId, name: groupName };
+                            Object.values(importedData.lists).forEach(l => { if (l.groupId === importedGroup.id) l.groupId = newGroupId; });
+                        });
+                    }
+                    
+                    Object.values(importedData.lists).forEach(importedList => {
+                        let listName = importedList.name;
+                        let nameCounter = 1;
+                        while(Object.values(appData.lists).some(l => l.name === listName)) listName = `${importedList.name} (Imported ${nameCounter++})`;
+                        const newListId = generateId();
+                        appData.lists[newListId] = { ...importedData.lists[importedList.id], id: newListId, name: listName }; // Corrected typo here
+                    });
+
+                    saveData();
+                    renderUI();
+                    alert("Data imported successfully!");
+                } catch (err) {
+                    alert("Import failed. The file is either corrupted or not a valid backup file.");
+                    console.error("Import Error:", err);
+                } finally {
+                    event.target.value = '';
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        // --- Start the App ---
+        initialize();
+    });
+    </script>
 </body>
 </html>
