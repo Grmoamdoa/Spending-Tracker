@@ -8,7 +8,7 @@ const DEFAULT_CURRENCY = 'CAD';
 function detectCurrency() {
   try {
     const loc = (Intl.NumberFormat().resolvedOptions().locale || navigator.language || 'en-CA');
-    const m = loc.match(/-([A-Z]{2})/i);
+    const m = loc.match(/-([A-Z]{2})\b/i);
     const region = (m ? m[1] : 'CA').toUpperCase();
     // Map common regions to currencies; default to CAD if unknown
     const EUR = new Set(['AT','BE','CY','EE','FI','FR','DE','GR','IE','IT','LV','LT','LU','MT','NL','PT','SK','SI','ES']);
