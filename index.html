@@ -398,6 +398,26 @@
             border-radius: 8px;
         }
 
+        .warning-box {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+
+        .error-box {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+
         @media (max-width: 480px) {
             .container {
                 max-width: 100%;
@@ -441,6 +461,25 @@
             padding: 5px;
             background: #f0f0f0;
             border-radius: 4px;
+        }
+
+        .group-assignment {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .list-group-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .list-group-item:last-child {
+            border-bottom: none;
         }
     </style>
 </head>
@@ -509,7 +548,9 @@
                     <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">Choose File to Import</button>
                 </div>
                 <div class="export-section">
-                    <h3>Data Management</h3>
+                    <h3>Storage Management</h3>
+                    <button class="btn btn-secondary" onclick="showStorageInfo()">Storage Usage</button>
+                    <button class="btn btn-secondary" onclick="cleanupPhotos()">Cleanup Large Photos</button>
                     <button class="btn btn-danger" onclick="clearAllData()">Clear All Data</button>
                     <div class="debug" id="debug-info"></div>
                 </div>
@@ -536,7 +577,7 @@
         // Global state
         let currentTab = 'lists';
         let currentListId = null;
-        let currentView = 'lists'; // 'lists' or 'list-detail'
+        let currentView = 'lists';
         let lists = {};
         let groups = {};
         let chartInstance = null;
@@ -552,7 +593,39 @@
             console.log('App initialized');
         });
 
-        // Data management
+        // Image compression utility
+        function compressImage(file, maxWidth = 800, quality = 0.7) {
+            return new Promise((resolve) => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                
+                img.onload = function() {
+                    // Calculate new dimensions
+                    let { width, height } = img;
+                    if (width > maxWidth) {
+                        height = (height * maxWidth) / width;
+                        width = maxWidth;
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    // Draw and compress
+                    ctx.drawImage(img, 0, 0, width, height);
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                    resolve(compressedDataUrl);
+                };
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Data management with better error handling
         function saveData() {
             try {
                 const data = {
@@ -567,7 +640,12 @@
                 return true;
             } catch (e) {
                 console.error('Error saving data:', e);
-                alert('Error saving data: ' + e.message);
+                
+                if (e.name === 'QuotaExceededError') {
+                    showStorageFullModal();
+                } else {
+                    alert('Error saving data: ' + e.message);
+                }
                 return false;
             }
         }
@@ -611,25 +689,90 @@
                 
                 debugEl.innerHTML = `
                     Lists: ${listCount} | Groups: ${groupCount} | Items: ${totalItems}<br>
-                    Current List: ${currentListId || 'None'} | View: ${currentView}
+                    Storage: ${getStorageUsage()}
                 `;
             }
         }
 
-        // UI Refresh - centralized function to update all UI elements
+        // Storage management
+        function getStorageUsage() {
+            try {
+                const data = localStorage.getItem('spendingTracker');
+                if (!data) return '0 KB';
+                const bytes = new Blob([data]).size;
+                if (bytes < 1024) return bytes + ' B';
+                if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+                return Math.round(bytes / (1024 * 1024)) + ' MB';
+            } catch (e) {
+                return 'Unknown';
+            }
+        }
+
+        function showStorageInfo() {
+            const usage = getStorageUsage();
+            const photoCount = Object.values(lists).reduce((sum, list) => {
+                if (!list.items) return sum;
+                return sum + Object.values(list.items).filter(item => item.photo).length;
+            }, 0);
+
+            showModal('Storage Information', `
+                <div class="warning-box">
+                    <strong>Current Usage:</strong> ${usage}<br>
+                    <strong>Photos:</strong> ${photoCount} images<br>
+                    <strong>Limit:</strong> ~5-10 MB per domain
+                </div>
+                <p>If you're running out of storage:</p>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                    <li>Export your data to backup</li>
+                    <li>Remove old photos</li>
+                    <li>Use smaller/compressed images</li>
+                </ul>
+                <button class="btn btn-secondary" onclick="cleanupPhotos()">Auto-Cleanup Large Photos</button>
+            `);
+        }
+
+        function showStorageFullModal() {
+            showModal('Storage Full!', `
+                <div class="error-box">
+                    Your browser's storage is full. The item couldn't be saved with the photo.
+                </div>
+                <p>Options:</p>
+                <button class="btn btn-secondary" onclick="retryWithoutPhoto()">Save Without Photo</button>
+                <button class="btn btn-secondary" onclick="retryWithCompressedPhoto()">Try With Compressed Photo</button>
+                <button class="btn btn-secondary" onclick="cleanupPhotos(); closeModal();">Cleanup Photos & Retry</button>
+                <button class="btn" onclick="exportAllData()">Export Data First</button>
+            `);
+        }
+
+        function cleanupPhotos() {
+            let cleanedCount = 0;
+            Object.values(lists).forEach(list => {
+                if (list.items) {
+                    Object.values(list.items).forEach(item => {
+                        if (item.photo && item.photo.length > 50000) { // Remove photos > 50KB
+                            item.photo = null;
+                            cleanedCount++;
+                        }
+                    });
+                }
+            });
+            
+            if (saveData()) {
+                alert(`Cleaned up ${cleanedCount} large photos to free storage space.`);
+                refreshUI();
+            }
+        }
+
+        // UI Refresh
         function refreshUI() {
             console.log('Refreshing UI...');
-            
-            // Always update lists view
             renderLists();
             
-            // Update current view
             if (currentView === 'list-detail' && currentListId) {
                 renderItems();
                 updateBudgetPill();
             }
             
-            // Update current tab content
             if (currentTab === 'photos') {
                 renderPhotos();
             } else if (currentTab === 'analytics') {
@@ -685,7 +828,6 @@
             
             container.innerHTML = '';
 
-            // Render groups
             Object.values(groups).forEach(group => {
                 const groupDiv = document.createElement('div');
                 groupDiv.innerHTML = `
@@ -703,7 +845,6 @@
                 container.appendChild(groupDiv);
             });
 
-            // Render ungrouped lists
             Object.values(lists).filter(list => !list.groupId).forEach(list => {
                 const listDiv = document.createElement('div');
                 listDiv.innerHTML = renderListItem(list);
@@ -924,14 +1065,38 @@
             }
         }
 
-        // Groups modal
+        // Enhanced groups modal with list assignment
         function showGroupsModal() {
-            const groupsList = Object.values(groups).map(g => `
-                <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; border: 1px solid #eee; border-radius: 8px; margin: 10px 0;">
-                    <span>${g.name}</span>
-                    <button class="btn btn-danger btn-small" onclick="deleteGroup('${g.id}')">Delete</button>
-                </div>
-            `).join('');
+            const groupsList = Object.values(groups).map(g => {
+                const listsInGroup = Object.values(lists).filter(list => list.groupId === g.id);
+                return `
+                    <div style="border: 1px solid #eee; border-radius: 8px; margin: 10px 0; padding: 15px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                            <strong>${g.name}</strong>
+                            <button class="btn btn-danger btn-small" onclick="deleteGroup('${g.id}')">Delete</button>
+                        </div>
+                        <div style="font-size: 12px; color: #666;">
+                            ${listsInGroup.length} lists: ${listsInGroup.map(l => l.name).join(', ') || 'None'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            const allListsForAssignment = Object.values(lists).map(list => {
+                const currentGroup = list.groupId ? groups[list.groupId]?.name : 'No Group';
+                return `
+                    <div class="list-group-item">
+                        <span><strong>${list.name}</strong><br>
+                        <small>Currently in: ${currentGroup}</small></span>
+                        <select id="list-group-${list.id}" style="padding: 4px; font-size: 12px;">
+                            <option value="">No Group</option>
+                            ${Object.values(groups).map(g => 
+                                `<option value="${g.id}" ${list.groupId === g.id ? 'selected' : ''}>${g.name}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                `;
+            }).join('');
 
             showModal('Manage Groups', `
                 <div class="input-group">
@@ -939,10 +1104,39 @@
                     <input type="text" id="new-group-name" placeholder="e.g., Cuba Vacation">
                 </div>
                 <button class="btn" onclick="createGroup()">Create Group</button>
+                
                 <hr style="margin: 20px 0;">
                 <h4>Existing Groups</h4>
                 ${groupsList || '<p style="color: #666;">No groups created yet.</p>'}
+                
+                ${Object.keys(lists).length > 0 ? `
+                    <hr style="margin: 20px 0;">
+                    <h4>Assign Lists to Groups</h4>
+                    <div class="group-assignment">
+                        ${allListsForAssignment}
+                        <button class="btn btn-secondary" onclick="updateListGroups()" style="margin-top: 15px;">Update Assignments</button>
+                    </div>
+                ` : ''}
             `);
+        }
+
+        function updateListGroups() {
+            Object.values(lists).forEach(list => {
+                const selectEl = document.getElementById(`list-group-${list.id}`);
+                if (selectEl) {
+                    const newGroupId = selectEl.value || null;
+                    if (list.groupId !== newGroupId) {
+                        list.groupId = newGroupId;
+                        console.log(`Moved list "${list.name}" to group:`, newGroupId);
+                    }
+                }
+            });
+            
+            if (saveData()) {
+                refreshUI();
+                showGroupsModal(); // Refresh the modal
+                console.log('List group assignments updated');
+            }
         }
 
         function createGroup() {
@@ -971,7 +1165,6 @@
             
             console.log('Deleting group:', groupId);
             
-            // Remove group from lists
             Object.values(lists).forEach(list => {
                 if (list.groupId === groupId) {
                     list.groupId = null;
@@ -987,7 +1180,7 @@
             }
         }
 
-        // Add item modal
+        // Add item modal with compression
         function showAddItemModal() {
             showModal('Add Item', `
                 <div class="input-group">
@@ -1007,12 +1200,17 @@
                 <div class="input-group">
                     <label>Photo (Optional)</label>
                     <input type="file" id="item-photo" accept="image/*">
+                    <div class="warning-box" style="font-size: 12px;">
+                        Large photos will be automatically compressed to save storage space.
+                    </div>
                 </div>
                 <button class="btn" onclick="addItem()">Add Item</button>
             `);
         }
 
-        function addItem() {
+        let pendingItem = null; // Store item temporarily for retry operations
+
+        async function addItem() {
             console.log('Adding item...');
             const name = document.getElementById('item-name').value.trim();
             const price = parseFloat(document.getElementById('item-price').value) || 0;
@@ -1034,13 +1232,19 @@
                 photo: null
             };
 
+            pendingItem = item; // Store for retry
+
             if (photoFile) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    item.photo = e.target.result;
+                try {
+                    // Compress the image
+                    const compressedPhoto = await compressImage(photoFile);
+                    item.photo = compressedPhoto;
                     finishAddItem(item);
-                };
-                reader.readAsDataURL(photoFile);
+                } catch (e) {
+                    console.error('Error compressing image:', e);
+                    // Try without photo
+                    finishAddItem(item);
+                }
             } else {
                 finishAddItem(item);
             }
@@ -1063,7 +1267,33 @@
             if (saveData()) {
                 refreshUI();
                 closeModal();
+                pendingItem = null;
                 console.log('Item added successfully:', item.name);
+            }
+            // If saveData fails, the storage full modal will show
+        }
+
+        // Retry functions for storage full scenario
+        function retryWithoutPhoto() {
+            if (pendingItem) {
+                pendingItem.photo = null;
+                finishAddItem(pendingItem);
+            }
+        }
+
+        async function retryWithCompressedPhoto() {
+            if (pendingItem && pendingItem.photo) {
+                try {
+                    // Try with higher compression
+                    const photoFile = document.getElementById('item-photo').files[0];
+                    if (photoFile) {
+                        const moreCompressed = await compressImage(photoFile, 400, 0.3);
+                        pendingItem.photo = moreCompressed;
+                        finishAddItem(pendingItem);
+                    }
+                } catch (e) {
+                    retryWithoutPhoto();
+                }
             }
         }
 
@@ -1094,12 +1324,15 @@
                     <label>Photo</label>
                     <input type="file" id="edit-item-photo" accept="image/*">
                     ${item.photo ? '<p style="font-size: 12px; color: #666;">Current photo will be replaced if you select a new one</p>' : ''}
+                    <div class="warning-box" style="font-size: 12px;">
+                        Large photos will be automatically compressed to save storage space.
+                    </div>
                 </div>
                 <button class="btn" onclick="updateItem('${itemId}')">Update Item</button>
             `);
         }
 
-        function updateItem(itemId) {
+        async function updateItem(itemId) {
             console.log('Updating item:', itemId);
             const name = document.getElementById('edit-item-name').value.trim();
             const price = parseFloat(document.getElementById('edit-item-price').value) || 0;
@@ -1122,12 +1355,14 @@
             item.quantity = quantity;
 
             if (photoFile) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    item.photo = e.target.result;
+                try {
+                    const compressedPhoto = await compressImage(photoFile);
+                    item.photo = compressedPhoto;
                     finishUpdateItem();
-                };
-                reader.readAsDataURL(photoFile);
+                } catch (e) {
+                    console.error('Error compressing image:', e);
+                    finishUpdateItem();
+                }
             } else {
                 finishUpdateItem();
             }
@@ -1248,7 +1483,7 @@
             console.log('Photos rendered:', allPhotos.length);
         }
 
-        // Analytics
+        // Analytics functions (keeping existing ones)
         function renderAnalytics() {
             console.log('Rendering analytics...');
             if (!currentListId) {
@@ -1432,7 +1667,6 @@
         }
 
         function applyChartFilter() {
-            // This is a simplified implementation
             closeModal();
         }
 
