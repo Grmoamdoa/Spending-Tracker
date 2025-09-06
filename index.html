@@ -433,6 +433,15 @@
             transform: scale(1.1);
             box-shadow: 0 6px 16px rgba(0,0,0,0.2);
         }
+
+        .debug {
+            font-size: 12px;
+            color: #999;
+            margin: 10px 0;
+            padding: 5px;
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -502,6 +511,7 @@
                 <div class="export-section">
                     <h3>Data Management</h3>
                     <button class="btn btn-danger" onclick="clearAllData()">Clear All Data</button>
+                    <div class="debug" id="debug-info"></div>
                 </div>
             </div>
         </div>
@@ -534,31 +544,100 @@
 
         // Initialize app
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('App initializing...');
             loadData();
-            renderLists();
             updateCurrency();
+            refreshUI();
+            updateDebugInfo();
+            console.log('App initialized');
         });
 
         // Data management
         function saveData() {
-            localStorage.setItem('spendingTracker', JSON.stringify({
-                lists: lists,
-                groups: groups,
-                version: '1.0'
-            }));
+            try {
+                const data = {
+                    lists: lists,
+                    groups: groups,
+                    version: '1.0',
+                    lastSaved: Date.now()
+                };
+                localStorage.setItem('spendingTracker', JSON.stringify(data));
+                console.log('Data saved successfully');
+                updateDebugInfo();
+                return true;
+            } catch (e) {
+                console.error('Error saving data:', e);
+                alert('Error saving data: ' + e.message);
+                return false;
+            }
         }
 
         function loadData() {
-            const data = localStorage.getItem('spendingTracker');
-            if (data) {
-                const parsed = JSON.parse(data);
-                lists = parsed.lists || {};
-                groups = parsed.groups || {};
+            try {
+                const data = localStorage.getItem('spendingTracker');
+                console.log('Loading data...', data ? 'Found data' : 'No data found');
+                
+                if (data) {
+                    const parsed = JSON.parse(data);
+                    lists = parsed.lists || {};
+                    groups = parsed.groups || {};
+                    console.log('Data loaded:', Object.keys(lists).length, 'lists,', Object.keys(groups).length, 'groups');
+                } else {
+                    lists = {};
+                    groups = {};
+                    console.log('Starting with empty data');
+                }
+                return true;
+            } catch (e) {
+                console.error('Error loading data:', e);
+                lists = {};
+                groups = {};
+                return false;
             }
         }
 
         function generateId() {
             return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+
+        function updateDebugInfo() {
+            const debugEl = document.getElementById('debug-info');
+            if (debugEl) {
+                const listCount = Object.keys(lists).length;
+                const groupCount = Object.keys(groups).length;
+                const totalItems = Object.values(lists).reduce((sum, list) => {
+                    return sum + (list.items ? Object.keys(list.items).length : 0);
+                }, 0);
+                
+                debugEl.innerHTML = `
+                    Lists: ${listCount} | Groups: ${groupCount} | Items: ${totalItems}<br>
+                    Current List: ${currentListId || 'None'} | View: ${currentView}
+                `;
+            }
+        }
+
+        // UI Refresh - centralized function to update all UI elements
+        function refreshUI() {
+            console.log('Refreshing UI...');
+            
+            // Always update lists view
+            renderLists();
+            
+            // Update current view
+            if (currentView === 'list-detail' && currentListId) {
+                renderItems();
+                updateBudgetPill();
+            }
+            
+            // Update current tab content
+            if (currentTab === 'photos') {
+                renderPhotos();
+            } else if (currentTab === 'analytics') {
+                renderAnalytics();
+            }
+            
+            updateDebugInfo();
+            console.log('UI refreshed');
         }
 
         // Currency detection
@@ -579,7 +658,7 @@
         }
 
         function formatCurrency(amount) {
-            return window.currencyFormatter.format(amount);
+            return window.currencyFormatter.format(amount || 0);
         }
 
         // Tab management
@@ -600,7 +679,10 @@
 
         // Lists management
         function renderLists() {
+            console.log('Rendering lists...');
             const container = document.getElementById('lists-container');
+            if (!container) return;
+            
             container.innerHTML = '';
 
             // Render groups
@@ -627,11 +709,13 @@
                 listDiv.innerHTML = renderListItem(list);
                 container.appendChild(listDiv);
             });
+            
+            console.log('Lists rendered');
         }
 
         function renderListItem(list) {
             const total = getListTotal(list.id);
-            const itemCount = Object.keys(list.items || {}).length;
+            const itemCount = list.items ? Object.keys(list.items).length : 0;
             
             return `
                 <div class="list-item" onclick="selectList('${list.id}')">
@@ -645,6 +729,7 @@
         }
 
         function selectList(listId) {
+            console.log('Selecting list:', listId);
             currentListId = listId;
             currentView = 'list-detail';
             document.getElementById('lists-view').classList.add('hidden');
@@ -652,21 +737,24 @@
             document.getElementById('header-title').textContent = lists[listId].name;
             updateBudgetPill();
             renderItems();
+            updateDebugInfo();
         }
 
         function backToLists() {
+            console.log('Going back to lists');
             currentListId = null;
             currentView = 'lists';
             document.getElementById('lists-view').classList.remove('hidden');
             document.getElementById('list-detail-view').classList.add('hidden');
             document.getElementById('header-title').textContent = 'Spending Tracker';
             updateBudgetPill();
+            updateDebugInfo();
         }
 
         function getListTotal(listId) {
             const list = lists[listId];
             if (!list || !list.items) return 0;
-            return Object.values(list.items).reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            return Object.values(list.items).reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0);
         }
 
         function getGroupListCount(groupId) {
@@ -685,18 +773,23 @@
 
         function expandGroup(groupId) {
             const groupElement = document.getElementById(`group-${groupId}`);
-            groupElement.classList.toggle('hidden');
+            if (groupElement) {
+                groupElement.classList.toggle('hidden');
+            }
         }
 
         // Items management
         function renderItems() {
+            console.log('Rendering items for list:', currentListId);
             if (!currentListId) return;
             
             const container = document.getElementById('items-container');
             const list = lists[currentListId];
+            if (!container || !list) return;
+            
             container.innerHTML = '';
 
-            if (!list.items) {
+            if (!list.items || Object.keys(list.items).length === 0) {
                 container.innerHTML = '<p style="text-align: center; color: #666; margin: 40px 0;">No items yet. Add your first item!</p>';
                 return;
             }
@@ -712,7 +805,7 @@
                                 <h4>${item.name}</h4>
                                 <div class="item-details">
                                     ${formatCurrency(item.price)} × ${item.quantity} = 
-                                    <span class="item-total">${formatCurrency(item.price * item.quantity)}</span>
+                                    <span class="item-total">${formatCurrency((item.price || 0) * (item.quantity || 1))}</span>
                                 </div>
                                 <div class="item-details" style="font-size: 12px; color: #999;">
                                     ${new Date(item.timestamp).toLocaleString()}
@@ -727,11 +820,14 @@
                     `;
                     container.appendChild(itemDiv);
                 });
+            
+            console.log('Items rendered:', Object.keys(list.items).length);
         }
 
         // Budget management
         function updateBudgetPill() {
             const pill = document.getElementById('budget-pill');
+            if (!pill) return;
             
             if (!currentListId) {
                 pill.textContent = 'No Budget Set';
@@ -802,6 +898,7 @@
         }
 
         function createList() {
+            console.log('Creating list...');
             const name = document.getElementById('new-list-name').value.trim();
             const groupId = document.getElementById('new-list-group').value || null;
             
@@ -820,9 +917,11 @@
                 createdAt: Date.now()
             };
 
-            saveData();
-            renderLists();
-            closeModal();
+            if (saveData()) {
+                refreshUI();
+                closeModal();
+                console.log('List created successfully:', name);
+            }
         }
 
         // Groups modal
@@ -847,6 +946,7 @@
         }
 
         function createGroup() {
+            console.log('Creating group...');
             const name = document.getElementById('new-group-name').value.trim();
             if (!name) {
                 alert('Please enter a group name');
@@ -860,12 +960,16 @@
                 createdAt: Date.now()
             };
 
-            saveData();
-            showGroupsModal(); // Refresh the modal
+            if (saveData()) {
+                showGroupsModal(); // Refresh the modal
+                console.log('Group created successfully:', name);
+            }
         }
 
         function deleteGroup(groupId) {
             if (!confirm('Delete this group? Lists in the group will become ungrouped.')) return;
+            
+            console.log('Deleting group:', groupId);
             
             // Remove group from lists
             Object.values(lists).forEach(list => {
@@ -875,9 +979,12 @@
             });
 
             delete groups[groupId];
-            saveData();
-            renderLists();
-            showGroupsModal(); // Refresh the modal
+            
+            if (saveData()) {
+                refreshUI();
+                showGroupsModal(); // Refresh the modal
+                console.log('Group deleted successfully');
+            }
         }
 
         // Add item modal
@@ -906,6 +1013,7 @@
         }
 
         function addItem() {
+            console.log('Adding item...');
             const name = document.getElementById('item-name').value.trim();
             const price = parseFloat(document.getElementById('item-price').value) || 0;
             const quantity = parseInt(document.getElementById('item-quantity').value) || 1;
@@ -939,17 +1047,33 @@
         }
 
         function finishAddItem(item) {
+            console.log('Finishing add item:', item.name);
+            
+            if (!lists[currentListId]) {
+                console.error('No current list found');
+                return;
+            }
+            
             if (!lists[currentListId].items) {
                 lists[currentListId].items = {};
             }
+            
             lists[currentListId].items[item.id] = item;
-            saveData();
-            renderItems();
-            updateBudgetPill();
-            closeModal();
+            
+            if (saveData()) {
+                refreshUI();
+                closeModal();
+                console.log('Item added successfully:', item.name);
+            }
         }
 
         function editItem(itemId) {
+            console.log('Editing item:', itemId);
+            if (!lists[currentListId] || !lists[currentListId].items || !lists[currentListId].items[itemId]) {
+                console.error('Item not found');
+                return;
+            }
+            
             const item = lists[currentListId].items[itemId];
             showModal('Edit Item', `
                 <div class="input-group">
@@ -976,6 +1100,7 @@
         }
 
         function updateItem(itemId) {
+            console.log('Updating item:', itemId);
             const name = document.getElementById('edit-item-name').value.trim();
             const price = parseFloat(document.getElementById('edit-item-price').value) || 0;
             const quantity = parseInt(document.getElementById('edit-item-quantity').value) || 1;
@@ -983,6 +1108,11 @@
 
             if (!name) {
                 alert('Please enter an item name');
+                return;
+            }
+
+            if (!lists[currentListId] || !lists[currentListId].items || !lists[currentListId].items[itemId]) {
+                console.error('Item not found for update');
                 return;
             }
 
@@ -1003,20 +1133,30 @@
             }
 
             function finishUpdateItem() {
-                saveData();
-                renderItems();
-                updateBudgetPill();
-                closeModal();
+                if (saveData()) {
+                    refreshUI();
+                    closeModal();
+                    console.log('Item updated successfully:', item.name);
+                }
             }
         }
 
         function deleteItem(itemId) {
             if (!confirm('Delete this item?')) return;
             
+            console.log('Deleting item:', itemId);
+            
+            if (!lists[currentListId] || !lists[currentListId].items || !lists[currentListId].items[itemId]) {
+                console.error('Item not found for deletion');
+                return;
+            }
+            
             delete lists[currentListId].items[itemId];
-            saveData();
-            renderItems();
-            updateBudgetPill();
+            
+            if (saveData()) {
+                refreshUI();
+                console.log('Item deleted successfully');
+            }
         }
 
         // Budget modal
@@ -1042,21 +1182,30 @@
             }
 
             lists[currentListId].budget = amount;
-            saveData();
-            updateBudgetPill();
-            closeModal();
+            
+            if (saveData()) {
+                updateBudgetPill();
+                closeModal();
+                console.log('Budget set:', amount);
+            }
         }
 
         function clearBudget() {
             lists[currentListId].budget = null;
-            saveData();
-            updateBudgetPill();
-            closeModal();
+            
+            if (saveData()) {
+                updateBudgetPill();
+                closeModal();
+                console.log('Budget cleared');
+            }
         }
 
         // Photos
         function renderPhotos() {
+            console.log('Rendering photos...');
             const container = document.getElementById('photos-container');
+            if (!container) return;
+            
             container.innerHTML = '';
 
             const allPhotos = [];
@@ -1095,12 +1244,14 @@
                 `;
                 container.appendChild(photoDiv);
             });
+            
+            console.log('Photos rendered:', allPhotos.length);
         }
 
         // Analytics
         function renderAnalytics() {
+            console.log('Rendering analytics...');
             if (!currentListId) {
-                // Show global analytics
                 renderGlobalStats();
                 renderSpendingChart();
             } else {
@@ -1110,15 +1261,16 @@
 
         function renderListStats() {
             const container = document.getElementById('stats-container');
+            if (!container || !currentListId || !lists[currentListId]) return;
+            
             const list = lists[currentListId];
-            const items = Object.values(list.items || {});
+            const items = list.items ? Object.values(list.items) : [];
             const total = getListTotal(currentListId);
             const itemCount = items.length;
             const photosCount = items.filter(item => item.photo).length;
             
-            const prices = items.map(item => item.price * item.quantity).filter(price => price > 0);
+            const prices = items.map(item => (item.price || 0) * (item.quantity || 1)).filter(price => price > 0);
             const mostExpensive = prices.length > 0 ? Math.max(...prices) : 0;
-            const leastExpensive = prices.length > 0 ? Math.min(...prices) : 0;
 
             container.innerHTML = `
                 <div class="stat-card">
@@ -1142,6 +1294,8 @@
 
         function renderGlobalStats() {
             const container = document.getElementById('stats-container');
+            if (!container) return;
+            
             const allItems = [];
             let totalSpent = 0;
             let photosCount = 0;
@@ -1150,14 +1304,11 @@
                 if (list.items) {
                     Object.values(list.items).forEach(item => {
                         allItems.push(item);
-                        totalSpent += item.price * item.quantity;
+                        totalSpent += (item.price || 0) * (item.quantity || 1);
                         if (item.photo) photosCount++;
                     });
                 }
             });
-
-            const prices = allItems.map(item => item.price * item.quantity).filter(price => price > 0);
-            const mostExpensive = prices.length > 0 ? Math.max(...prices) : 0;
 
             container.innerHTML = `
                 <div class="stat-card">
@@ -1180,7 +1331,10 @@
         }
 
         function renderSpendingChart() {
-            const ctx = document.getElementById('spending-chart').getContext('2d');
+            const ctx = document.getElementById('spending-chart');
+            if (!ctx) return;
+            
+            const context = ctx.getContext('2d');
             
             if (chartInstance) {
                 chartInstance.destroy();
@@ -1188,7 +1342,7 @@
 
             const monthlyData = getMonthlySpending();
             
-            chartInstance = new Chart(ctx, {
+            chartInstance = new Chart(context, {
                 type: chartType,
                 data: {
                     labels: monthlyData.labels,
@@ -1218,9 +1372,6 @@
                         legend: {
                             display: false
                         }
-                    },
-                    onDoubleClick: function() {
-                        toggleChartType();
                     }
                 }
             });
@@ -1238,7 +1389,7 @@
                         if (!monthlySpending[monthKey]) {
                             monthlySpending[monthKey] = 0;
                         }
-                        monthlySpending[monthKey] += item.price * item.quantity;
+                        monthlySpending[monthKey] += (item.price || 0) * (item.quantity || 1);
                     });
                 }
             });
@@ -1281,12 +1432,11 @@
         }
 
         function applyChartFilter() {
-            // This is a simplified implementation - you could extend this
-            // to actually filter the chart data based on selected lists
+            // This is a simplified implementation
             closeModal();
         }
 
-        // Export/Import
+        // Export/Import functions remain the same...
         function exportCurrentList() {
             if (!currentListId) {
                 alert('No list selected');
@@ -1356,9 +1506,9 @@
                         csvData.push([
                             list.name,
                             item.name,
-                            item.quantity,
-                            item.price,
-                            item.price * item.quantity,
+                            item.quantity || 1,
+                            item.price || 0,
+                            (item.price || 0) * (item.quantity || 1),
                             new Date(item.timestamp).toISOString(),
                             item.photo ? 'Yes' : 'No'
                         ]);
@@ -1398,11 +1548,9 @@
                     const data = JSON.parse(e.target.result);
                     
                     if (data.list) {
-                        // Single list import
                         const newId = generateId();
                         const list = { ...data.list, id: newId };
                         
-                        // Ensure unique IDs for items
                         if (list.items) {
                             const newItems = {};
                             Object.values(list.items).forEach(item => {
@@ -1415,7 +1563,6 @@
                         lists[newId] = list;
                         alert('List imported successfully!');
                     } else if (data.lists) {
-                        // Full backup import
                         if (confirm('This will merge with your existing data. Continue?')) {
                             Object.values(data.lists || {}).forEach(list => {
                                 const newId = generateId();
@@ -1431,9 +1578,11 @@
                         }
                     }
                     
-                    saveData();
-                    renderLists();
+                    if (saveData()) {
+                        refreshUI();
+                    }
                 } catch (err) {
+                    console.error('Import error:', err);
                     alert('Invalid file format');
                 }
             };
@@ -1450,7 +1599,7 @@
             
             currentListId = null;
             backToLists();
-            renderLists();
+            refreshUI();
             alert('All data has been cleared');
         }
     </script>
