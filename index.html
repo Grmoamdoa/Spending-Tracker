@@ -3,499 +3,1456 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Shopping List V3 (Final)</title>
-    <!-- V3 Library Dependencies -->
+    <title>Spending Tracker</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode/html5-qrcode.min.js"></script>
     <style>
-        :root {
-            --primary-color: #8e44ad;
-            --secondary-color: #3498db;
-            --danger-color: #c0392b;
-            --warning-color: #f39c12;
-            --success-color: #27ae60;
-            --background-gradient: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
-            --white: #ffffff;
-            --light-gray: #f0f0f0;
-            --dark-gray: #333333;
-            --shadow: 0 4px 15px rgba(0,0,0,0.1);
-            --border-radius: 12px;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        * {
             margin: 0;
-            background: var(--background-gradient);
-            color: var(--dark-gray);
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            min-height: 100vh;
-            padding: 15px;
+            padding: 0;
             box-sizing: border-box;
         }
 
-        .app-container {
-            width: 100%;
-            max-width: 450px;
-            background: var(--light-gray);
-            border-radius: var(--border-radius);
-            box-shadow: var(--shadow);
-            overflow: hidden;
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.4;
+            min-height: 100vh;
+            padding-bottom: 80px;
         }
 
-        header {
-            background: var(--white);
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .budget-pill {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            display: inline-block;
+            margin: 5px 0;
+            transition: all 0.3s ease;
+        }
+
+        .budget-pill:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .budget-pill.over-budget {
+            background: #e74c3c;
+            border-color: #c0392b;
+        }
+
+        .budget-pill.watch-spending {
+            background: #f39c12;
+            border-color: #d68910;
+        }
+
+        .budget-pill.on-track {
+            background: #27ae60;
+            border-color: #229954;
+        }
+
+        .nav {
+            display: flex;
+            background: white;
+            border-bottom: 1px solid #eee;
+        }
+
+        .nav-item {
+            flex: 1;
             padding: 15px;
-            border-bottom: 1px solid #ddd;
+            text-align: center;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
         }
-        
-        .header-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-        .header-row:not(:last-child) { margin-bottom: 10px; }
-        #list-selector { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: var(--border-radius); font-size: 16px; }
 
-        .btn { padding: 10px 15px; border: none; border-radius: var(--border-radius); background: var(--primary-color); color: var(--white); cursor: pointer; font-size: 16px; transition: background 0.3s; flex-shrink: 0; }
-        .btn:hover { background: #732d91; }
-        .btn-secondary { background: var(--secondary-color); }
-        .btn-secondary:hover { background: #2980b9; }
-        .btn-danger { background: var(--danger-color); }
-        .btn-danger:hover { background: #a5281b; }
-        .btn-small { padding: 5px 10px; font-size: 14px; }
-        .icon-btn { padding: 8px; font-size: 14px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+        .nav-item.active {
+            border-bottom-color: #667eea;
+            color: #667eea;
+            font-weight: 600;
+        }
 
-        .analytics-header { display: flex; justify-content: space-around; text-align: center; padding: 15px 0; background: rgba(255,255,255,0.5); }
-        .metric { font-size: 14px; }
-        .metric span { display: block; font-weight: bold; font-size: 18px; }
+        .content {
+            padding: 20px;
+        }
 
-        main { padding: 20px; }
-        
-        #barcode-scanner-container { display: none; margin-bottom: 15px; }
-        #barcode-reader { border: 2px solid #ddd; border-radius: var(--border-radius); }
+        .hidden {
+            display: none !important;
+        }
 
-        .add-item-form { background: var(--white); padding: 20px; border-radius: var(--border-radius); margin-bottom: 20px; box-shadow: var(--shadow); }
-        .form-row { display: flex; gap: 10px; align-items: center; }
-        .form-group { margin-bottom: 15px; flex-grow: 1; }
-        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
-        .form-group input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: var(--border-radius); box-sizing: border-box; }
-        #photo-preview { max-width: 100px; margin-top: 10px; border-radius: var(--border-radius); display: none; }
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin: 10px 0;
+        }
 
-        #item-list { display: grid; gap: 15px; }
-        .item-card { background: var(--white); padding: 15px; border-radius: var(--border-radius); box-shadow: var(--shadow); display: flex; align-items: center; gap: 10px; position: relative; }
-        .item-card .drag-handle { cursor: grab; font-size: 24px; color: #ccc; padding-right: 5px; }
-        .item-card .drag-handle:active { cursor: grabbing; }
-        .sortable-ghost { opacity: 0.4; background: #e0c8ee; }
-        .sortable-chosen { box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
+        .btn:hover {
+            background: #5a6fd8;
+            transform: translateY(-1px);
+        }
 
-        .item-card img { width: 60px; height: 60px; border-radius: var(--border-radius); object-fit: cover; }
-        .item-info { flex-grow: 1; }
-        .item-info h3 { margin: 0; font-size: 18px; }
-        .item-info p { margin: 5px 0 0; font-size: 16px; color: var(--primary-color); font-weight: bold; }
-        .item-actions { display: flex; gap: 5px; }
+        .btn-secondary {
+            background: #6c757d;
+        }
 
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); justify-content: center; align-items: center; }
-        .modal-content { background-color: var(--light-gray); padding: 20px; border-radius: var(--border-radius); width: 90%; max-width: 500px; box-shadow: 0 5px 20px rgba(0,0,0,0.3); position: relative; max-height: 80vh; display: flex; flex-direction: column; }
-        .modal-body { overflow-y: auto; }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; flex-shrink: 0; }
-        .modal-header h2 { margin: 0; }
-        .close-btn { font-size: 28px; font-weight: bold; cursor: pointer; }
-        .modal-content input, .modal-content select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: var(--border-radius); box-sizing: border-box; margin-bottom: 15px; }
-        .modal-footer { margin-top: 20px; border-top: 1px solid #ccc; padding-top: 20px; display:flex; gap: 10px; flex-wrap: wrap; }
-        
-        .chart-container { position: relative; height: 220px; width: 100%; margin-bottom: 20px; }
-        
-        .management-list, .filter-list { list-style: none; padding: 0; margin: 0; }
-        .management-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; background: var(--white); border-radius: var(--border-radius); margin-bottom: 10px; }
-        .management-item .name { font-weight: bold; }
-        .management-item select { margin-bottom: 0; }
-        .filter-item label { display: flex; align-items: center; gap: 10px; padding: 12px; cursor: pointer; background: var(--white); border-radius: 8px; margin-bottom: 8px; }
-        .filter-group-header { font-weight: bold; margin-top: 15px; padding-bottom: 5px; border-bottom: 1px solid #ccc; margin-bottom: 10px; }
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .input-group {
+            margin: 15px 0;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-row .input-group {
+            flex: 1;
+        }
+
+        .list-item {
+            background: white;
+            border: 1px solid #eee;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 15px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .list-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .list-item h3 {
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .list-meta {
+            color: #666;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .item-card {
+            background: white;
+            border: 1px solid #eee;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 15px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .item-info h4 {
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .item-details {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .item-total {
+            font-size: 18px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .item-photo {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            object-fit: cover;
+            cursor: pointer;
+        }
+
+        .item-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+            flex: 1;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .photo-item {
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .photo-item img {
+            width: 100%;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .photo-item-label {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.2;
+        }
+
+        .fullscreen-photo {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+
+        .fullscreen-photo img {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .chart-container {
+            margin: 20px 0;
+            height: 300px;
+            position: relative;
+        }
+
+        .chart-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .filter-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin: 10px 0;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .export-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                max-width: 100%;
+            }
+            
+            .content {
+                padding: 15px;
+            }
+            
+            .input-row {
+                flex-direction: column;
+            }
+        }
+
+        .fab {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 100;
+            transition: all 0.3s ease;
+        }
+
+        .fab:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 <body>
-
-    <div class="app-container">
-        <header>
-            <div class="header-row">
-                <select id="list-selector"></select>
-                <button class="btn icon-btn" id="new-list-btn" title="New List">+</button>
-                <button class="btn btn-danger icon-btn" id="delete-list-btn" title="Delete Selected List">🗑️</button>
+    <div class="container">
+        <div class="header">
+            <h1 id="header-title">Spending Tracker</h1>
+            <div id="budget-pill" class="budget-pill" onclick="showBudgetModal()">
+                No Budget Set
             </div>
-            <div class="header-row">
-                <button class="btn btn-secondary btn-small" id="manage-groups-btn">🗂️ Groups</button>
-                <button class="btn btn-secondary btn-small" id="global-analytics-btn">📈 Analytics</button>
-                <button class="btn btn-secondary btn-small" id="settings-btn">⚙️ Settings</button>
-            </div>
-        </header>
-
-        <div class="analytics-header">
-            <div class="metric">Total Items <span id="total-items">0</span></div>
-            <div class="metric">Total Spent <span id="total-spent">$0.00</span></div>
-            <div class="metric">Avg. Price <span id="avg-price">$0.00</span></div>
         </div>
 
-        <main>
-            <div id="barcode-scanner-container"><div id="barcode-reader"></div><button class="btn btn-danger" style="width: 100%; margin-top: 10px;" id="close-scanner-btn">Close Scanner</button></div>
-            <form class="add-item-form" id="add-item-form"><div class="form-row"><div class="form-group" style="flex-grow: 4;"><label for="item-name">Item Name</label><input type="text" id="item-name" required></div><div class="form-group"><label>&nbsp;</label><button type="button" class="btn icon-btn" id="scan-barcode-btn" title="Scan Barcode">📷</button></div></div><div class="form-row"><div class="form-group"><label for="item-price">Price</label><input type="number" id="item-price" step="0.01" min="0" required></div><div class="form-group"><label for="item-quantity">Quantity</label><input type="number" id="item-quantity" value="1" min="1" required></div></div><div class="form-group"><label for="item-photo">Price Tag Photo (Optional)</label><input type="file" id="item-photo" accept="image/*"><img id="photo-preview" src="" alt="Photo Preview"></div><button type="submit" class="btn" style="width: 100%;">Add Item</button></form>
-            <h2 id="current-list-title"></h2>
-            <div id="item-list"></div>
-        </main>
+        <div class="nav">
+            <div class="nav-item active" onclick="showTab('lists')">📝 Lists</div>
+            <div class="nav-item" onclick="showTab('photos')">📷 Photos</div>
+            <div class="nav-item" onclick="showTab('analytics')">📊 Analytics</div>
+            <div class="nav-item" onclick="showTab('export')">💾 Data</div>
+        </div>
+
+        <div class="content">
+            <!-- Lists Tab -->
+            <div id="lists-tab">
+                <div id="lists-view">
+                    <div id="lists-container"></div>
+                    <button class="btn" onclick="showCreateListModal()">+ Create New List</button>
+                    <button class="btn btn-secondary" onclick="showGroupsModal()">📁 Manage Groups</button>
+                </div>
+
+                <div id="list-detail-view" class="hidden">
+                    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                        <button class="btn btn-secondary" onclick="backToLists()">← Back</button>
+                        <button class="btn" onclick="showAddItemModal()">+ Add Item</button>
+                    </div>
+                    <div id="items-container"></div>
+                </div>
+            </div>
+
+            <!-- Photos Tab -->
+            <div id="photos-tab" class="hidden">
+                <div id="photos-container" class="photo-grid"></div>
+            </div>
+
+            <!-- Analytics Tab -->
+            <div id="analytics-tab" class="hidden">
+                <div id="stats-container" class="stats-grid"></div>
+                <div class="chart-controls">
+                    <button class="btn btn-secondary" onclick="showFilterModal()">🎯 Filter Lists</button>
+                    <button class="btn btn-secondary" onclick="toggleChartType()">📊 Toggle Chart</button>
+                </div>
+                <div class="chart-container">
+                    <canvas id="spending-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Export Tab -->
+            <div id="export-tab" class="hidden">
+                <div class="export-section">
+                    <h3>Export Data</h3>
+                    <button class="btn" onclick="exportCurrentList()">Export Current List (JSON)</button>
+                    <button class="btn" onclick="exportAllData()">Export All Data (JSON)</button>
+                    <button class="btn" onclick="showCSVExportModal()">Export CSV</button>
+                </div>
+                <div class="export-section">
+                    <h3>Import Data</h3>
+                    <input type="file" id="import-file" accept=".json" onchange="importData()" style="margin-bottom: 10px;">
+                    <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">Choose File to Import</button>
+                </div>
+                <div class="export-section">
+                    <h3>Data Management</h3>
+                    <button class="btn btn-danger" onclick="clearAllData()">Clear All Data</button>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- MODALS -->
-    <div id="new-list-modal" class="modal"><div class="modal-content"><div class="modal-header"><h2>Create New List</h2><span class="close-btn">&times;</span></div><div class="modal-body"><input type="text" id="new-list-name" placeholder="e.g., Weekly Groceries"></div><div class="modal-footer"><button class="btn" id="create-list-btn" style="width:100%;">Create List</button></div></div></div>
-    <div id="edit-item-modal" class="modal"><div class="modal-content"><div class="modal-header"><h2>Edit Item</h2><span class="close-btn">&times;</span></div><div class="modal-body"><input type="hidden" id="edit-item-id"><div class="form-group"><label for="edit-item-name">Item Name</label><input type="text" id="edit-item-name" required></div><div class="form-row"><div class="form-group"><label for="edit-item-price">Price</label><input type="number" id="edit-item-price" step="0.01" min="0" required></div><div class="form-group"><label for="edit-item-quantity">Quantity</label><input type="number" id="edit-item-quantity" min="1" required></div></div><div class="form-group"><label for="edit-item-photo">Change Photo</label><input type="file" id="edit-item-photo" accept="image/*"><img id="edit-photo-preview" src="" style="max-width:100px; margin-top:10px; border-radius: var(--border-radius);"></div></div><div class="modal-footer"><button class="btn" id="save-item-changes-btn" style="width:100%;">Save Changes</button></div></div></div>
-    <div id="manage-groups-modal" class="modal"><div class="modal-content"><div class="modal-header"><h2>Manage Groups</h2><span class="close-btn">&times;</span></div><div class="modal-body"><h3>Create New Group</h3><div class="form-row"><input type="text" id="new-group-name" placeholder="e.g., Vacation Prep"><button class="btn" id="create-group-btn">Create</button></div><hr style="margin: 20px 0;"><h3>Assign Lists to Groups</h3><ul id="list-group-assignments" class="management-list"></ul></div></div></div>
-    <div id="global-analytics-modal" class="modal"><div class="modal-content"><div class="modal-header"><h2>Global Analytics</h2><span class="close-btn">&times;</span></div><div class="modal-body"><div class="chart-container"><canvas id="spending-chart"></canvas></div><div id="global-analytics-content"></div></div><div class="modal-footer"><button class="btn btn-secondary" id="filter-analytics-btn">Filter Data</button><button class="btn" id="export-view-json-btn">Export View (JSON)</button><button class="btn" id="export-view-csv-btn">Export View (CSV)</button></div></div></div>
-    <div id="analytics-filter-modal" class="modal"><div class="modal-content"><div class="modal-header"><h2>Filter Analytics Data</h2><span class="close-btn">&times;</span></div><div id="filter-options-list" class="modal-body"></div><div class="modal-footer"><button class="btn" id="apply-analytics-filter-btn" style="width:100%;">Apply Filter</button></div></div></div>
-    <div id="settings-modal" class="modal"><div class="modal-content"><div class="modal-header"><h2>Settings & Data</h2><span class="close-btn">&times;</span></div><div class="modal-body"><h3>Data Management</h3><p>Backup all lists, groups, and items to a single file.</p><button class="btn" id="backup-all-data-btn" style="width:100%;">Backup All Data</button><br><br><p>Import data from a backup file. This will merge with your existing data.</p><label for="import-data-input" class="btn btn-secondary" style="text-align:center; display:block;">Select Import File</label><input type="file" id="import-data-input" accept=".json" style="display:none;"></div></div></div>
+    <!-- Modals -->
+    <div id="modal-overlay" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Modal</h3>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <div id="fullscreen-photo" class="fullscreen-photo hidden" onclick="closeFullscreen()">
+        <img id="fullscreen-img" src="" alt="">
+    </div>
 
     <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        // --- App State ---
-        let appData = { lists: {}, groups: {}, currentListId: null };
-        let currentAnalyticsFilter = { type: 'all', ids: { groups: [], lists: [] } };
-        let sortableInstance = null, html5QrCode = null, analyticsChart = null;
+        // Global state
+        let currentTab = 'lists';
+        let currentListId = null;
+        let currentView = 'lists'; // 'lists' or 'list-detail'
+        let lists = {};
+        let groups = {};
+        let chartInstance = null;
+        let chartType = 'bar';
 
-        // --- DOM Elements ---
-        const listSelector = document.getElementById('list-selector');
-        const currentListTitle = document.getElementById('current-list-title');
-        const itemListEl = document.getElementById('item-list');
-        const addItemForm = document.getElementById('add-item-form');
-        const totalItemsEl = document.getElementById('total-items');
-        const totalSpentEl = document.getElementById('total-spent');
-        const avgPriceEl = document.getElementById('avg-price');
-        // Buttons
-        const newListBtn = document.getElementById('new-list-btn');
-        const deleteListBtn = document.getElementById('delete-list-btn');
-        const manageGroupsBtn = document.getElementById('manage-groups-btn');
-        const globalAnalyticsBtn = document.getElementById('global-analytics-btn');
-        const settingsBtn = document.getElementById('settings-btn');
-        const scanBarcodeBtn = document.getElementById('scan-barcode-btn');
-        const closeScannerBtn = document.getElementById('close-scanner-btn');
-        // Modals
-        const newListModal = document.getElementById('new-list-modal');
-        const editItemModal = document.getElementById('edit-item-modal');
-        const manageGroupsModal = document.getElementById('manage-groups-modal');
-        const globalAnalyticsModal = document.getElementById('global-analytics-modal');
-        const analyticsFilterModal = document.getElementById('analytics-filter-modal');
-        const settingsModal = document.getElementById('settings-modal');
-        
-        // --- Data Functions ---
-        const loadData = () => { if (localStorage.getItem('shoppingAppV3')) appData = JSON.parse(localStorage.getItem('shoppingAppV3')); };
-        const saveData = () => localStorage.setItem('shoppingAppV3', JSON.stringify(appData));
-        const generateId = () => Date.now().toString() + Math.random().toString(36).substr(2, 9);
-
-        // --- Initialization ---
-        function initialize() {
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
             loadData();
-            if (Object.keys(appData.lists).length === 0) {
-                const firstListId = generateId();
-                appData.lists[firstListId] = { id: firstListId, name: "My First List", items: [], createdAt: new Date().toISOString(), groupId: null };
-                appData.currentListId = firstListId;
+            renderLists();
+            updateCurrency();
+        });
+
+        // Data management
+        function saveData() {
+            localStorage.setItem('spendingTracker', JSON.stringify({
+                lists: lists,
+                groups: groups,
+                version: '1.0'
+            }));
+        }
+
+        function loadData() {
+            const data = localStorage.getItem('spendingTracker');
+            if (data) {
+                const parsed = JSON.parse(data);
+                lists = parsed.lists || {};
+                groups = parsed.groups || {};
             }
-            if (!appData.groups) appData.groups = {};
-            appData.currentListId = appData.currentListId || Object.keys(appData.lists)[0] || null;
-            
-            html5QrCode = new Html5Qrcode("barcode-reader");
-            setupEventListeners();
-            initializeSortable();
-            renderUI();
         }
 
-        // --- UI Rendering ---
-        function renderUI() {
-            const currentList = appData.lists[appData.currentListId];
-            currentListTitle.textContent = currentList ? currentList.name : "No lists exist.";
-            if (!currentList) itemListEl.innerHTML = '';
-            renderListSelector();
-            renderItems();
-            updateHeaderAnalytics();
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
         }
 
-        function renderListSelector() {
-            listSelector.innerHTML = '';
-            const sortedGroups = Object.values(appData.groups).sort((a,b) => a.name.localeCompare(b.name));
-            const groupedLists = {};
-            sortedGroups.forEach(group => groupedLists[group.id] = []);
-            const ungroupedLists = [];
-            Object.values(appData.lists).forEach(list => (list.groupId && appData.groups[list.groupId]) ? groupedLists[list.groupId].push(list) : ungroupedLists.push(list));
-            sortedGroups.forEach(group => {
-                const optgroup = document.createElement('optgroup');
-                optgroup.label = group.name;
-                groupedLists[group.id].sort((a,b) => a.name.localeCompare(b.name)).forEach(list => optgroup.appendChild(createOption(list)));
-                listSelector.appendChild(optgroup);
-            });
-            if (ungroupedLists.length > 0) {
-                const optgroup = document.createElement('optgroup');
-                optgroup.label = "Ungrouped";
-                ungroupedLists.sort((a,b) => a.name.localeCompare(b.name)).forEach(list => optgroup.appendChild(createOption(list)));
-                listSelector.appendChild(optgroup);
-            }
-            function createOption(list) { const opt = document.createElement('option'); opt.value = list.id; opt.textContent = list.name; if (list.id === appData.currentListId) opt.selected = true; return opt; }
-            deleteListBtn.style.display = Object.keys(appData.lists).length > 0 ? 'flex' : 'none';
-        }
-        
-        function renderItems() {
-            itemListEl.innerHTML = '';
-            const currentList = appData.lists[appData.currentListId];
-            if (!currentList) return;
-            currentList.items.forEach(item => {
-                const itemCard = document.createElement('div');
-                itemCard.className = 'item-card'; itemCard.dataset.id = item.id;
-                const quantityText = item.quantity > 1 ? ` (x${item.quantity})` : '';
-                itemCard.innerHTML = `<span class="drag-handle" title="Drag to reorder">⠿</span><img src="${item.photo || 'https://via.placeholder.com/60'}" alt="${item.name}"><div class="item-info"><h3>${item.name}${quantityText}</h3><p>$${(parseFloat(item.price) * item.quantity).toFixed(2)}</p></div><div class="item-actions"><button class="btn icon-btn btn-secondary edit-item-btn" title="Edit Item">✏️</button><button class="btn icon-btn btn-danger delete-item-btn" title="Delete Item">🗑️</button></div>`;
-                itemListEl.appendChild(itemCard);
-            });
-        }
-        
-        function updateHeaderAnalytics() {
-            const currentList = appData.lists[appData.currentListId];
-            if (!currentList) { totalItemsEl.textContent = '0'; totalSpentEl.textContent = '$0.00'; avgPriceEl.textContent = '$0.00'; return; }
-            const items = currentList.items;
-            const totalIndividualItems = items.reduce((sum, item) => sum + item.quantity, 0);
-            const totalSpent = items.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
-            const avgPrice = totalIndividualItems > 0 ? totalSpent / totalIndividualItems : 0;
-            totalItemsEl.textContent = totalIndividualItems; totalSpentEl.textContent = `$${totalSpent.toFixed(2)}`; avgPriceEl.textContent = `$${avgPrice.toFixed(2)}`;
-        }
-
-        function setupEventListeners() {
-            listSelector.addEventListener('change', () => { appData.currentListId = listSelector.value; saveData(); renderUI(); });
-            addItemForm.addEventListener('submit', handleAddItem);
-            document.querySelectorAll('.modal .close-btn').forEach(btn => btn.addEventListener('click', (e) => e.target.closest('.modal').style.display = 'none'));
-            window.addEventListener('click', (e) => { document.querySelectorAll('.modal').forEach(modal => { if (e.target === modal) modal.style.display = 'none'; }); });
-            newListBtn.addEventListener('click', () => { newListModal.style.display = 'flex'; });
-            deleteListBtn.addEventListener('click', handleDeleteList);
-            manageGroupsBtn.addEventListener('click', openGroupManager);
-            globalAnalyticsBtn.addEventListener('click', () => openGlobalAnalytics());
-            settingsBtn.addEventListener('click', () => settingsModal.style.display = 'flex');
-            document.getElementById('create-list-btn').addEventListener('click', handleCreateList);
-            document.getElementById('save-item-changes-btn').addEventListener('click', handleSaveChanges);
-            document.getElementById('create-group-btn').addEventListener('click', handleCreateGroup);
-            document.getElementById('list-group-assignments').addEventListener('change', handleAssignListToGroup);
-            document.getElementById('filter-analytics-btn').addEventListener('click', openAnalyticsFilterModal);
-            document.getElementById('apply-analytics-filter-btn').addEventListener('click', handleApplyFilter);
-            document.getElementById('export-view-json-btn').addEventListener('click', () => handleExportView('json'));
-            document.getElementById('export-view-csv-btn').addEventListener('click', () => handleExportView('csv'));
-            document.getElementById('backup-all-data-btn').addEventListener('click', handleBackupAllData);
-            document.getElementById('import-data-input').addEventListener('change', handleImportData);
-            itemListEl.addEventListener('click', (e) => {
-                const deleteBtn = e.target.closest('.delete-item-btn');
-                const editBtn = e.target.closest('.edit-item-btn');
-                if (deleteBtn) handleDeleteItem(e.target.closest('.item-card').dataset.id);
-                if (editBtn) openEditItemModal(e.target.closest('.item-card').dataset.id);
-            });
-            document.getElementById('edit-item-photo').addEventListener('change', handlePhotoPreview);
-            document.getElementById('item-photo').addEventListener('change', handlePhotoPreview);
-            scanBarcodeBtn.addEventListener('click', startScanner);
-            closeScannerBtn.addEventListener('click', stopScanner);
-        }
-        
-        function initializeSortable() { if (sortableInstance) sortableInstance.destroy(); sortableInstance = new Sortable(itemListEl, { handle: '.drag-handle', animation: 150, ghostClass: 'sortable-ghost', chosenClass: 'sortable-chosen', onEnd: handleItemDragEnd }); }
-        
-        function handleAddItem(e){e.preventDefault();const t=e.target,o=t.querySelector("#item-name").value.trim(),l=parseFloat(t.querySelector("#item-price").value),i=parseInt(t.querySelector("#item-quantity").value,10),n=t.querySelector("#photo-preview");if(!o||isNaN(l)||isNaN(i)||!appData.currentListId)return void alert("Please fill out all fields correctly.");const a={id:generateId(),name:o,price:l,quantity:i,photo:n.src,createdAt:(new Date).toISOString()};appData.lists[appData.currentListId].items.push(a),saveData(),renderUI(),t.reset(),n.style.display="none",n.src=""}
-        function handleCreateList(){const e=document.getElementById("new-list-name"),t=e.value.trim();if(t){if(Object.values(appData.lists).some(e=>e.name===t))return void alert("A list with this name already exists.");const o=generateId();appData.lists[o]={id:o,name:t,items:[],createdAt:(new Date).toISOString(),groupId:null},appData.currentListId=o,saveData(),renderUI(),newListModal.style.display="none",e.value=""}}
-        function handleDeleteList(){if(!appData.currentListId)return;const e=appData.lists[appData.currentListId].name;confirm(`Are you sure you want to delete the list "${e}"?`)&&(delete appData.lists[appData.currentListId],appData.currentListId=Object.keys(appData.lists)[0]||null,saveData(),renderUI())}
-        function handleDeleteItem(e){const t=appData.lists[appData.currentListId];t&&(t.items=t.items.filter(t=>t.id!==e),saveData(),renderUI())}
-        function openEditItemModal(e){const t=appData.lists[appData.currentListId].items.find(t=>t.id===e);if(!t)return;document.getElementById("edit-item-id").value=t.id,document.getElementById("edit-item-name").value=t.name,document.getElementById("edit-item-price").value=t.price,document.getElementById("edit-item-quantity").value=t.quantity;const o=document.getElementById("edit-photo-preview");o.src=t.photo||"",o.style.display=t.photo?"block":"none",document.getElementById("edit-item-photo").value="",editItemModal.style.display="flex"}
-        function handleSaveChanges(){const e=document.getElementById("edit-item-id").value,t=appData.lists[appData.currentListId],o=t.items.findIndex(t=>t.id===e);if(-1===o)return;const l=document.getElementById("edit-item-name").value.trim(),i=parseFloat(document.getElementById("edit-item-price").value),n=parseInt(document.getElementById("edit-item-quantity").value,10);if(!l||isNaN(i)||isNaN(n))return void alert("Please fill out all fields correctly.");t.items[o].name=l,t.items[o].price=i,t.items[o].quantity=n,t.items[o].photo=document.getElementById("edit-photo-preview").src,saveData(),renderUI(),editItemModal.style.display="none"}
-        function handleItemDragEnd(e){const{oldIndex:t,newIndex:o}=e,l=appData.lists[appData.currentListId];if(!l)return;const[i]=l.items.splice(t,1);l.items.splice(o,0,i),saveData()}
-        function handlePhotoPreview(event){const t=event.target,o="edit-item-photo"===t.id?document.getElementById("edit-photo-preview"):document.getElementById("photo-preview"),l=t.files[0];if(l){const e=new FileReader;e.onload=t=>{o.src=t.target.result,o.style.display="block"},e.readAsDataURL(l)}else o.src="",o.style.display="none"}
-        function startScanner(){addItemForm.style.display="none",scannerContainer.style.display="block";const e={fps:10,qrbox:{width:250,height:150}},t=(e,t)=>{stopScanner(),fetchProductInfo(e)};html5QrCode.start({facingMode:"environment"},e,t,e=>{}).catch(e=>{alert("Could not start scanner."),stopScanner()})}
-        function stopScanner(){html5QrCode.stop().then(e=>{scannerContainer.style.display="none",addItemForm.style.display="block"}).catch(e=>{scannerContainer.style.display="none",addItemForm.style.display="block"})}
-        async function fetchProductInfo(e){alert(`Searching for barcode: ${e}...`);try{const t=await fetch(`https://world.openfoodfacts.org/api/v0/product/${e}.json`);if(!t.ok)throw new Error(`HTTP error! status: ${t.status}`);const o=await t.json();if(1===o.status&&o.product){const e=o.product;document.getElementById("item-name").value=e.product_name||e.generic_name||"Unknown Product";const t=document.getElementById("photo-preview"),l=e.image_front_url||e.image_url||"";l?(t.src=l,t.style.display="block"):(t.style.display="none",t.src=""),alert("Product found!")}else alert("Product not found.")}catch(e){alert("Failed to fetch product information.")}}
-        function openGroupManager(){renderGroupManager(),manageGroupsModal.style.display="flex"}
-        function renderGroupManager(){const e=document.getElementById("list-group-assignments");e.innerHTML="",Object.values(appData.lists).sort((e,t)=>e.name.localeCompare(t.name)).forEach(t=>{const o=document.createElement("li");o.className="management-item";const l=document.createElement("select");l.dataset.listId=t.id;const i=document.createElement("option");i.value="null",i.textContent="Ungrouped",l.appendChild(i),Object.values(appData.groups).sort((e,t)=>e.name.localeCompare(t.name)).forEach(e=>{const o=document.createElement("option");o.value=e.id,o.textContent=e.name,t.groupId===e.id&&(o.selected=!0),l.appendChild(o)}),o.innerHTML=`<span class="name">${t.name}</span>`,o.appendChild(l),e.appendChild(o)})}
-        function handleCreateGroup(){const e=document.getElementById("new-group-name"),t=e.value.trim();if(!t)return void alert("Group name cannot be empty.");if(Object.values(appData.groups).some(e=>e.name===t))return void alert("A group with this name already exists.");const o=generateId();appData.groups[o]={id:o,name:t},saveData(),renderGroupManager(),e.value=""}
-        function handleAssignListToGroup(e){const t=e.target,o=t.dataset.listId,l="null"===t.value?null:t.value;appData.lists[o]&&(appData.lists[o].groupId=l,saveData(),renderListSelector())}
-        
-        function getFilteredLists() {
-            if (currentAnalyticsFilter.type === 'all') return Object.values(appData.lists);
-            let listIds = new Set();
-            if (currentAnalyticsFilter.ids.lists) currentAnalyticsFilter.ids.lists.forEach(id => listIds.add(id));
-            if (currentAnalyticsFilter.ids.groups) {
-                currentAnalyticsFilter.ids.groups.forEach(groupId => {
-                    Object.values(appData.lists).forEach(list => { if (list.groupId === groupId) listIds.add(list.id); });
+        // Currency detection
+        function updateCurrency() {
+            const locale = navigator.language || 'en-CA';
+            try {
+                const formatter = new Intl.NumberFormat(locale, {
+                    style: 'currency',
+                    currency: locale.includes('CA') ? 'CAD' : 'USD'
+                });
+                window.currencyFormatter = formatter;
+            } catch (e) {
+                window.currencyFormatter = new Intl.NumberFormat('en-CA', {
+                    style: 'currency',
+                    currency: 'CAD'
                 });
             }
-            return Array.from(listIds).map(id => appData.lists[id]);
         }
-        
-        function openGlobalAnalytics() {
-            const listsToAnalyze = getFilteredLists();
-            const contentEl = document.getElementById('global-analytics-content');
-            const chartContainer = globalAnalyticsModal.querySelector('.chart-container');
-            if (analyticsChart) analyticsChart.destroy();
+
+        function formatCurrency(amount) {
+            return window.currencyFormatter.format(amount);
+        }
+
+        // Tab management
+        function showTab(tabName) {
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            document.querySelectorAll('[id$="-tab"]').forEach(tab => tab.classList.add('hidden'));
             
-            if (listsToAnalyze.length === 0) {
-                contentEl.innerHTML = "<p>No lists match the current filter.</p>";
-                chartContainer.style.display = 'none';
-                globalAnalyticsModal.style.display = 'flex';
+            event.target.classList.add('active');
+            document.getElementById(tabName + '-tab').classList.remove('hidden');
+            currentTab = tabName;
+
+            if (tabName === 'photos') {
+                renderPhotos();
+            } else if (tabName === 'analytics') {
+                renderAnalytics();
+            }
+        }
+
+        // Lists management
+        function renderLists() {
+            const container = document.getElementById('lists-container');
+            container.innerHTML = '';
+
+            // Render groups
+            Object.values(groups).forEach(group => {
+                const groupDiv = document.createElement('div');
+                groupDiv.innerHTML = `
+                    <div class="list-item" onclick="expandGroup('${group.id}')">
+                        <h3>📁 ${group.name}</h3>
+                        <div class="list-meta">
+                            <span>${getGroupListCount(group.id)} lists</span>
+                            <span>${formatCurrency(getGroupTotal(group.id))}</span>
+                        </div>
+                    </div>
+                    <div id="group-${group.id}" class="hidden" style="margin-left: 20px;">
+                        ${getGroupLists(group.id).map(list => renderListItem(list)).join('')}
+                    </div>
+                `;
+                container.appendChild(groupDiv);
+            });
+
+            // Render ungrouped lists
+            Object.values(lists).filter(list => !list.groupId).forEach(list => {
+                const listDiv = document.createElement('div');
+                listDiv.innerHTML = renderListItem(list);
+                container.appendChild(listDiv);
+            });
+        }
+
+        function renderListItem(list) {
+            const total = getListTotal(list.id);
+            const itemCount = Object.keys(list.items || {}).length;
+            
+            return `
+                <div class="list-item" onclick="selectList('${list.id}')">
+                    <h3>${list.name}</h3>
+                    <div class="list-meta">
+                        <span>${itemCount} items</span>
+                        <span>${formatCurrency(total)}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function selectList(listId) {
+            currentListId = listId;
+            currentView = 'list-detail';
+            document.getElementById('lists-view').classList.add('hidden');
+            document.getElementById('list-detail-view').classList.remove('hidden');
+            document.getElementById('header-title').textContent = lists[listId].name;
+            updateBudgetPill();
+            renderItems();
+        }
+
+        function backToLists() {
+            currentListId = null;
+            currentView = 'lists';
+            document.getElementById('lists-view').classList.remove('hidden');
+            document.getElementById('list-detail-view').classList.add('hidden');
+            document.getElementById('header-title').textContent = 'Spending Tracker';
+            updateBudgetPill();
+        }
+
+        function getListTotal(listId) {
+            const list = lists[listId];
+            if (!list || !list.items) return 0;
+            return Object.values(list.items).reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        }
+
+        function getGroupListCount(groupId) {
+            return Object.values(lists).filter(list => list.groupId === groupId).length;
+        }
+
+        function getGroupTotal(groupId) {
+            return Object.values(lists)
+                .filter(list => list.groupId === groupId)
+                .reduce((sum, list) => sum + getListTotal(list.id), 0);
+        }
+
+        function getGroupLists(groupId) {
+            return Object.values(lists).filter(list => list.groupId === groupId);
+        }
+
+        function expandGroup(groupId) {
+            const groupElement = document.getElementById(`group-${groupId}`);
+            groupElement.classList.toggle('hidden');
+        }
+
+        // Items management
+        function renderItems() {
+            if (!currentListId) return;
+            
+            const container = document.getElementById('items-container');
+            const list = lists[currentListId];
+            container.innerHTML = '';
+
+            if (!list.items) {
+                container.innerHTML = '<p style="text-align: center; color: #666; margin: 40px 0;">No items yet. Add your first item!</p>';
                 return;
             }
-            chartContainer.style.display = 'block';
 
-            let totalSpentAll = 0, totalItemsAll = 0, listTotals = [];
-            listsToAnalyze.forEach(list => {
-                const listSpent = list.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                const listItems = list.items.reduce((sum, item) => sum + item.quantity, 0);
-                totalSpentAll += listSpent;
-                totalItemsAll += listItems;
-                listTotals.push({ name: list.name, total: listSpent, createdAt: list.createdAt });
-            });
-            listTotals.sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt));
-
-            const chartLabels = listTotals.map(list => list.name);
-            const chartData = listTotals.map(list => list.total);
-            const ctx = document.getElementById('spending-chart').getContext('2d');
-            analyticsChart = new Chart(ctx, { type: 'line', data: { labels: chartLabels, datasets: [{ label: 'Total Spending', data: chartData, backgroundColor: 'rgba(142, 68, 173, 0.2)', borderColor: 'rgba(142, 68, 173, 1)', borderWidth: 2, fill: true, tension: 0.1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, title: { display: true, text: 'Spending Over Time' }}, scales: { y: { beginAtZero: true, ticks: { callback: (value) => '$' + value.toFixed(2) }}} } });
-
-            const mostExpensive = [...listTotals].sort((a,b) => b.total - a.total)[0] || {name: '-', total: 0};
-            const avgListSpend = listsToAnalyze.length > 0 ? (totalSpentAll / listsToAnalyze.length).toFixed(2) : '0.00';
-            contentEl.innerHTML = `<div class="analysis-item"><span>Lists Included:</span> <span>${listsToAnalyze.length}</span></div><div class="analysis-item"><span>Total Items:</span> <span>${totalItemsAll}</span></div><div class="analysis-item"><span>Total Spending:</span> <span>$${totalSpentAll.toFixed(2)}</span></div><hr><div class="analysis-item"><span>Average List Total:</span> <span>$${avgListSpend}</span></div><div class="analysis-item"><span>Most Expensive List:</span> <span>${mostExpensive.name} ($${mostExpensive.total.toFixed(2)})</span></div>`;
-            globalAnalyticsModal.style.display = 'flex';
+            Object.values(list.items)
+                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+                .forEach(item => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'item-card';
+                    itemDiv.innerHTML = `
+                        <div class="item-header">
+                            <div class="item-info">
+                                <h4>${item.name}</h4>
+                                <div class="item-details">
+                                    ${formatCurrency(item.price)} × ${item.quantity} = 
+                                    <span class="item-total">${formatCurrency(item.price * item.quantity)}</span>
+                                </div>
+                                <div class="item-details" style="font-size: 12px; color: #999;">
+                                    ${new Date(item.timestamp).toLocaleString()}
+                                </div>
+                            </div>
+                            ${item.photo ? `<img src="${item.photo}" class="item-photo" onclick="showFullscreen('${item.photo}')">` : ''}
+                        </div>
+                        <div class="item-actions">
+                            <button class="btn btn-secondary btn-small" onclick="editItem('${item.id}')">Edit</button>
+                            <button class="btn btn-danger btn-small" onclick="deleteItem('${item.id}')">Delete</button>
+                        </div>
+                    `;
+                    container.appendChild(itemDiv);
+                });
         }
 
-        function openAnalyticsFilterModal() {
-            const filterOptionsList = document.getElementById('filter-options-list');
-            filterOptionsList.innerHTML = '';
-        
-            const createFilterItem = (type, item) => {
-                const div = document.createElement('div');
-                div.className = 'filter-item';
-                const label = document.createElement('label');
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.className = 'filter-checkbox';
-                checkbox.dataset.type = type;
-                checkbox.value = item.id;
-                
-                if (currentAnalyticsFilter.type === 'custom') {
-                    const ids = currentAnalyticsFilter.ids[type + 's']; // e.g., currentAnalyticsFilter.ids.groups
-                    if (ids && ids.includes(item.id)) checkbox.checked = true;
-                }
-        
-                label.appendChild(checkbox);
-                label.appendChild(document.createTextNode(` ${item.name}`));
-                div.appendChild(label);
-                return div;
-            };
-        
-            if (Object.keys(appData.groups).length > 0) {
-                const groupsHeader = document.createElement('div');
-                groupsHeader.className = 'filter-group-header';
-                groupsHeader.textContent = 'Groups';
-                filterOptionsList.appendChild(groupsHeader);
-                Object.values(appData.groups).sort((a,b) => a.name.localeCompare(b.name)).forEach(group => filterOptionsList.appendChild(createFilterItem('group', group)));
-            }
-        
-            const listsHeader = document.createElement('div');
-            listsHeader.className = 'filter-group-header';
-            listsHeader.textContent = 'Individual Lists';
-            filterOptionsList.appendChild(listsHeader);
-            Object.values(appData.lists).sort((a,b) => a.name.localeCompare(b.name)).forEach(list => filterOptionsList.appendChild(createFilterItem('list', list)));
-        
-            analyticsFilterModal.style.display = 'flex';
-        }
-        
-        function handleApplyFilter() {
-            const selectedGroups = [];
-            const selectedLists = [];
-            document.querySelectorAll('.filter-checkbox:checked').forEach(checkbox => {
-                if (checkbox.dataset.type === 'group') selectedGroups.push(checkbox.value);
-                else selectedLists.push(checkbox.value);
-            });
+        // Budget management
+        function updateBudgetPill() {
+            const pill = document.getElementById('budget-pill');
             
-            if (selectedGroups.length === 0 && selectedLists.length === 0) {
-                currentAnalyticsFilter = { type: 'all', ids: { groups: [], lists: [] } };
+            if (!currentListId) {
+                pill.textContent = 'No Budget Set';
+                pill.className = 'budget-pill';
+                return;
+            }
+
+            const list = lists[currentListId];
+            const total = getListTotal(currentListId);
+            
+            if (!list.budget) {
+                pill.textContent = 'No Budget Set';
+                pill.className = 'budget-pill';
+                return;
+            }
+
+            const percentage = (total / list.budget) * 100;
+            
+            if (percentage > 100) {
+                pill.textContent = `Over Budget: ${formatCurrency(total)} / ${formatCurrency(list.budget)}`;
+                pill.className = 'budget-pill over-budget';
+            } else if (percentage > 80) {
+                pill.textContent = `Watch Spending: ${formatCurrency(total)} / ${formatCurrency(list.budget)}`;
+                pill.className = 'budget-pill watch-spending';
             } else {
-                currentAnalyticsFilter = { type: 'custom', ids: { groups: selectedGroups, lists: selectedLists } };
+                pill.textContent = `On Track: ${formatCurrency(total)} / ${formatCurrency(list.budget)}`;
+                pill.className = 'budget-pill on-track';
             }
-            analyticsFilterModal.style.display = 'none';
-            openGlobalAnalytics();
         }
 
-        function downloadFile(filename, content, contentType) {
-            const a = document.createElement('a');
-            const file = new Blob([content], {type: contentType});
-            a.href = URL.createObjectURL(file);
-            a.download = filename;
-            a.click();
-            URL.revokeObjectURL(a.href);
+        // Modal management
+        function showModal(title, content) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-body').innerHTML = content;
+            document.getElementById('modal-overlay').classList.remove('hidden');
         }
-        
-        function handleExportView(format) {
-            const listsToExport = getFilteredLists();
-            if (listsToExport.length === 0) return alert("No lists selected in the filter to export.");
+
+        function closeModal() {
+            document.getElementById('modal-overlay').classList.add('hidden');
+        }
+
+        function showFullscreen(imageSrc) {
+            document.getElementById('fullscreen-img').src = imageSrc;
+            document.getElementById('fullscreen-photo').classList.remove('hidden');
+        }
+
+        function closeFullscreen() {
+            document.getElementById('fullscreen-photo').classList.add('hidden');
+        }
+
+        // Create list modal
+        function showCreateListModal() {
+            const groupOptions = Object.values(groups).map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+            showModal('Create New List', `
+                <div class="input-group">
+                    <label>List Name</label>
+                    <input type="text" id="new-list-name" placeholder="e.g., Weekly Groceries">
+                </div>
+                <div class="input-group">
+                    <label>Group (Optional)</label>
+                    <select id="new-list-group">
+                        <option value="">No Group</option>
+                        ${groupOptions}
+                    </select>
+                </div>
+                <button class="btn" onclick="createList()">Create List</button>
+            `);
+        }
+
+        function createList() {
+            const name = document.getElementById('new-list-name').value.trim();
+            const groupId = document.getElementById('new-list-group').value || null;
             
-            if (format === 'json') {
-                const exportData = { lists: {}, groups: {} };
-                listsToExport.forEach(list => {
-                    exportData.lists[list.id] = list;
-                    if (list.groupId && appData.groups[list.groupId]) exportData.groups[list.groupId] = appData.groups[list.groupId];
-                });
-                downloadFile('SmartShop_Export.json', JSON.stringify(exportData, null, 2), 'application/json');
-            } else if (format === 'csv') {
-                let csvContent = "List Name,Item Name,Price,Quantity,Photo URL\r\n";
-                listsToExport.forEach(list => {
-                    list.items.forEach(item => {
-                        csvContent += `"${list.name}","${item.name}",${item.price},${item.quantity},"${item.photo || ''}"\r\n`;
-                    });
-                });
-                downloadFile('SmartShop_Export.csv', csvContent, 'text/csv;charset=utf-8;');
+            if (!name) {
+                alert('Please enter a list name');
+                return;
             }
+
+            const id = generateId();
+            lists[id] = {
+                id: id,
+                name: name,
+                groupId: groupId,
+                items: {},
+                budget: null,
+                createdAt: Date.now()
+            };
+
+            saveData();
+            renderLists();
+            closeModal();
         }
-        
-        function handleBackupAllData() {
-            if (confirm("This will create a backup file of ALL your data. Continue?")) {
-                downloadFile('SmartShop_Full_Backup.json', JSON.stringify(appData, null, 2), 'application/json');
+
+        // Groups modal
+        function showGroupsModal() {
+            const groupsList = Object.values(groups).map(g => `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; border: 1px solid #eee; border-radius: 8px; margin: 10px 0;">
+                    <span>${g.name}</span>
+                    <button class="btn btn-danger btn-small" onclick="deleteGroup('${g.id}')">Delete</button>
+                </div>
+            `).join('');
+
+            showModal('Manage Groups', `
+                <div class="input-group">
+                    <label>New Group Name</label>
+                    <input type="text" id="new-group-name" placeholder="e.g., Cuba Vacation">
+                </div>
+                <button class="btn" onclick="createGroup()">Create Group</button>
+                <hr style="margin: 20px 0;">
+                <h4>Existing Groups</h4>
+                ${groupsList || '<p style="color: #666;">No groups created yet.</p>'}
+            `);
+        }
+
+        function createGroup() {
+            const name = document.getElementById('new-group-name').value.trim();
+            if (!name) {
+                alert('Please enter a group name');
+                return;
+            }
+
+            const id = generateId();
+            groups[id] = {
+                id: id,
+                name: name,
+                createdAt: Date.now()
+            };
+
+            saveData();
+            showGroupsModal(); // Refresh the modal
+        }
+
+        function deleteGroup(groupId) {
+            if (!confirm('Delete this group? Lists in the group will become ungrouped.')) return;
+            
+            // Remove group from lists
+            Object.values(lists).forEach(list => {
+                if (list.groupId === groupId) {
+                    list.groupId = null;
+                }
+            });
+
+            delete groups[groupId];
+            saveData();
+            renderLists();
+            showGroupsModal(); // Refresh the modal
+        }
+
+        // Add item modal
+        function showAddItemModal() {
+            showModal('Add Item', `
+                <div class="input-group">
+                    <label>Item Name</label>
+                    <input type="text" id="item-name" placeholder="e.g., Bananas">
+                </div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>Price</label>
+                        <input type="number" id="item-price" step="0.01" placeholder="0.00">
+                    </div>
+                    <div class="input-group">
+                        <label>Quantity</label>
+                        <input type="number" id="item-quantity" value="1" min="1">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Photo (Optional)</label>
+                    <input type="file" id="item-photo" accept="image/*">
+                </div>
+                <button class="btn" onclick="addItem()">Add Item</button>
+            `);
+        }
+
+        function addItem() {
+            const name = document.getElementById('item-name').value.trim();
+            const price = parseFloat(document.getElementById('item-price').value) || 0;
+            const quantity = parseInt(document.getElementById('item-quantity').value) || 1;
+            const photoFile = document.getElementById('item-photo').files[0];
+
+            if (!name) {
+                alert('Please enter an item name');
+                return;
+            }
+
+            const id = generateId();
+            const item = {
+                id: id,
+                name: name,
+                price: price,
+                quantity: quantity,
+                timestamp: Date.now(),
+                photo: null
+            };
+
+            if (photoFile) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    item.photo = e.target.result;
+                    finishAddItem(item);
+                };
+                reader.readAsDataURL(photoFile);
+            } else {
+                finishAddItem(item);
             }
         }
 
-        function handleImportData(event) {
-            const file = event.target.files[0];
+        function finishAddItem(item) {
+            if (!lists[currentListId].items) {
+                lists[currentListId].items = {};
+            }
+            lists[currentListId].items[item.id] = item;
+            saveData();
+            renderItems();
+            updateBudgetPill();
+            closeModal();
+        }
+
+        function editItem(itemId) {
+            const item = lists[currentListId].items[itemId];
+            showModal('Edit Item', `
+                <div class="input-group">
+                    <label>Item Name</label>
+                    <input type="text" id="edit-item-name" value="${item.name}">
+                </div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>Price</label>
+                        <input type="number" id="edit-item-price" step="0.01" value="${item.price}">
+                    </div>
+                    <div class="input-group">
+                        <label>Quantity</label>
+                        <input type="number" id="edit-item-quantity" value="${item.quantity}" min="1">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Photo</label>
+                    <input type="file" id="edit-item-photo" accept="image/*">
+                    ${item.photo ? '<p style="font-size: 12px; color: #666;">Current photo will be replaced if you select a new one</p>' : ''}
+                </div>
+                <button class="btn" onclick="updateItem('${itemId}')">Update Item</button>
+            `);
+        }
+
+        function updateItem(itemId) {
+            const name = document.getElementById('edit-item-name').value.trim();
+            const price = parseFloat(document.getElementById('edit-item-price').value) || 0;
+            const quantity = parseInt(document.getElementById('edit-item-quantity').value) || 1;
+            const photoFile = document.getElementById('edit-item-photo').files[0];
+
+            if (!name) {
+                alert('Please enter an item name');
+                return;
+            }
+
+            const item = lists[currentListId].items[itemId];
+            item.name = name;
+            item.price = price;
+            item.quantity = quantity;
+
+            if (photoFile) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    item.photo = e.target.result;
+                    finishUpdateItem();
+                };
+                reader.readAsDataURL(photoFile);
+            } else {
+                finishUpdateItem();
+            }
+
+            function finishUpdateItem() {
+                saveData();
+                renderItems();
+                updateBudgetPill();
+                closeModal();
+            }
+        }
+
+        function deleteItem(itemId) {
+            if (!confirm('Delete this item?')) return;
+            
+            delete lists[currentListId].items[itemId];
+            saveData();
+            renderItems();
+            updateBudgetPill();
+        }
+
+        // Budget modal
+        function showBudgetModal() {
+            if (!currentListId) return;
+            
+            const currentBudget = lists[currentListId].budget || '';
+            showModal('Set Budget', `
+                <div class="input-group">
+                    <label>Budget Amount</label>
+                    <input type="number" id="budget-amount" step="0.01" value="${currentBudget}" placeholder="Enter budget amount">
+                </div>
+                <button class="btn" onclick="setBudget()">Set Budget</button>
+                <button class="btn btn-secondary" onclick="clearBudget()">Clear Budget</button>
+            `);
+        }
+
+        function setBudget() {
+            const amount = parseFloat(document.getElementById('budget-amount').value);
+            if (isNaN(amount) || amount <= 0) {
+                alert('Please enter a valid budget amount');
+                return;
+            }
+
+            lists[currentListId].budget = amount;
+            saveData();
+            updateBudgetPill();
+            closeModal();
+        }
+
+        function clearBudget() {
+            lists[currentListId].budget = null;
+            saveData();
+            updateBudgetPill();
+            closeModal();
+        }
+
+        // Photos
+        function renderPhotos() {
+            const container = document.getElementById('photos-container');
+            container.innerHTML = '';
+
+            const allPhotos = [];
+            Object.values(lists).forEach(list => {
+                if (list.items) {
+                    Object.values(list.items).forEach(item => {
+                        if (item.photo) {
+                            allPhotos.push({
+                                photo: item.photo,
+                                name: item.name,
+                                listName: list.name,
+                                timestamp: item.timestamp
+                            });
+                        }
+                    });
+                }
+            });
+
+            allPhotos.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            if (allPhotos.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666; margin: 40px 0;">No photos yet. Add items with photos to see them here!</p>';
+                return;
+            }
+
+            allPhotos.forEach(photo => {
+                const photoDiv = document.createElement('div');
+                photoDiv.className = 'photo-item';
+                photoDiv.innerHTML = `
+                    <img src="${photo.photo}" alt="${photo.name}" onclick="showFullscreen('${photo.photo}')">
+                    <div class="photo-item-label">
+                        <strong>${photo.name}</strong><br>
+                        ${photo.listName}<br>
+                        <span style="color: #999;">${new Date(photo.timestamp).toLocaleDateString()}</span>
+                    </div>
+                `;
+                container.appendChild(photoDiv);
+            });
+        }
+
+        // Analytics
+        function renderAnalytics() {
+            if (!currentListId) {
+                // Show global analytics
+                renderGlobalStats();
+                renderSpendingChart();
+            } else {
+                renderListStats();
+            }
+        }
+
+        function renderListStats() {
+            const container = document.getElementById('stats-container');
+            const list = lists[currentListId];
+            const items = Object.values(list.items || {});
+            const total = getListTotal(currentListId);
+            const itemCount = items.length;
+            const photosCount = items.filter(item => item.photo).length;
+            
+            const prices = items.map(item => item.price * item.quantity).filter(price => price > 0);
+            const mostExpensive = prices.length > 0 ? Math.max(...prices) : 0;
+            const leastExpensive = prices.length > 0 ? Math.min(...prices) : 0;
+
+            container.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">${formatCurrency(total)}</div>
+                    <div class="stat-label">Total Spent</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${itemCount}</div>
+                    <div class="stat-label">Items</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${photosCount}</div>
+                    <div class="stat-label">With Photos</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${formatCurrency(mostExpensive)}</div>
+                    <div class="stat-label">Most Expensive</div>
+                </div>
+            `;
+        }
+
+        function renderGlobalStats() {
+            const container = document.getElementById('stats-container');
+            const allItems = [];
+            let totalSpent = 0;
+            let photosCount = 0;
+
+            Object.values(lists).forEach(list => {
+                if (list.items) {
+                    Object.values(list.items).forEach(item => {
+                        allItems.push(item);
+                        totalSpent += item.price * item.quantity;
+                        if (item.photo) photosCount++;
+                    });
+                }
+            });
+
+            const prices = allItems.map(item => item.price * item.quantity).filter(price => price > 0);
+            const mostExpensive = prices.length > 0 ? Math.max(...prices) : 0;
+
+            container.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">${formatCurrency(totalSpent)}</div>
+                    <div class="stat-label">Total Spent</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${Object.keys(lists).length}</div>
+                    <div class="stat-label">Lists</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${allItems.length}</div>
+                    <div class="stat-label">Total Items</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${photosCount}</div>
+                    <div class="stat-label">Photos</div>
+                </div>
+            `;
+        }
+
+        function renderSpendingChart() {
+            const ctx = document.getElementById('spending-chart').getContext('2d');
+            
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            const monthlyData = getMonthlySpending();
+            
+            chartInstance = new Chart(ctx, {
+                type: chartType,
+                data: {
+                    labels: monthlyData.labels,
+                    datasets: [{
+                        label: 'Monthly Spending',
+                        data: monthlyData.values,
+                        backgroundColor: 'rgba(102, 126, 234, 0.6)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 2,
+                        fill: chartType === 'line' ? false : true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return formatCurrency(value);
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    onDoubleClick: function() {
+                        toggleChartType();
+                    }
+                }
+            });
+        }
+
+        function getMonthlySpending() {
+            const monthlySpending = {};
+            
+            Object.values(lists).forEach(list => {
+                if (list.items) {
+                    Object.values(list.items).forEach(item => {
+                        const date = new Date(item.timestamp);
+                        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                        
+                        if (!monthlySpending[monthKey]) {
+                            monthlySpending[monthKey] = 0;
+                        }
+                        monthlySpending[monthKey] += item.price * item.quantity;
+                    });
+                }
+            });
+
+            const sortedKeys = Object.keys(monthlySpending).sort();
+            const labels = sortedKeys.map(key => {
+                const [year, month] = key.split('-');
+                return new Date(year, month - 1).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short'
+                });
+            });
+            const values = sortedKeys.map(key => monthlySpending[key]);
+
+            return { labels, values };
+        }
+
+        function toggleChartType() {
+            chartType = chartType === 'bar' ? 'line' : 'bar';
+            renderSpendingChart();
+        }
+
+        function showFilterModal() {
+            const listOptions = Object.values(lists).map(list => `
+                <div class="checkbox-item">
+                    <input type="checkbox" id="list-${list.id}" checked>
+                    <label for="list-${list.id}">${list.name}</label>
+                </div>
+            `).join('');
+
+            showModal('Filter Lists for Chart', `
+                <div class="filter-section">
+                    <h4>Select Lists to Include</h4>
+                    <div class="checkbox-group">
+                        ${listOptions}
+                    </div>
+                </div>
+                <button class="btn" onclick="applyChartFilter()">Apply Filter</button>
+            `);
+        }
+
+        function applyChartFilter() {
+            // This is a simplified implementation - you could extend this
+            // to actually filter the chart data based on selected lists
+            closeModal();
+        }
+
+        // Export/Import
+        function exportCurrentList() {
+            if (!currentListId) {
+                alert('No list selected');
+                return;
+            }
+
+            const list = lists[currentListId];
+            const data = {
+                list: list,
+                exportDate: Date.now(),
+                version: '1.0'
+            };
+
+            downloadJSON(data, `${list.name.replace(/[^a-z0-9]/gi, '_')}_export.json`);
+        }
+
+        function exportAllData() {
+            const data = {
+                lists: lists,
+                groups: groups,
+                exportDate: Date.now(),
+                version: '1.0'
+            };
+
+            downloadJSON(data, 'spending_tracker_full_export.json');
+        }
+
+        function showCSVExportModal() {
+            const listOptions = Object.values(lists).map(list => `
+                <div class="checkbox-item">
+                    <input type="checkbox" id="csv-list-${list.id}" checked>
+                    <label for="csv-list-${list.id}">${list.name}</label>
+                </div>
+            `).join('');
+
+            showModal('Export CSV', `
+                <div class="filter-section">
+                    <h4>Select Lists to Export</h4>
+                    <div class="checkbox-group">
+                        ${listOptions}
+                    </div>
+                </div>
+                <button class="btn" onclick="exportCSV()">Export CSV</button>
+            `);
+        }
+
+        function exportCSV() {
+            const selectedLists = [];
+            Object.values(lists).forEach(list => {
+                const checkbox = document.getElementById(`csv-list-${list.id}`);
+                if (checkbox && checkbox.checked) {
+                    selectedLists.push(list);
+                }
+            });
+
+            if (selectedLists.length === 0) {
+                alert('Please select at least one list');
+                return;
+            }
+
+            const csvData = [];
+            csvData.push(['List Name', 'Item Name', 'Quantity', 'Unit Price', 'Total', 'Timestamp', 'Has Photo']);
+
+            selectedLists.forEach(list => {
+                if (list.items) {
+                    Object.values(list.items).forEach(item => {
+                        csvData.push([
+                            list.name,
+                            item.name,
+                            item.quantity,
+                            item.price,
+                            item.price * item.quantity,
+                            new Date(item.timestamp).toISOString(),
+                            item.photo ? 'Yes' : 'No'
+                        ]);
+                    });
+                }
+            });
+
+            const csv = csvData.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+            downloadFile(csv, 'spending_tracker_export.csv', 'text/csv');
+            closeModal();
+        }
+
+        function downloadJSON(data, filename) {
+            const json = JSON.stringify(data, null, 2);
+            downloadFile(json, filename, 'application/json');
+        }
+
+        function downloadFile(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function importData() {
+            const file = document.getElementById('import-file').files[0];
             if (!file) return;
+
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
-                    const importedData = JSON.parse(e.target.result);
-                    if (!importedData.lists) throw new Error("Invalid backup file.");
-
-                    if(importedData.groups) {
-                        Object.values(importedData.groups).forEach(importedGroup => {
-                            let groupName = importedGroup.name;
-                            let nameCounter = 1;
-                            while(Object.values(appData.groups).some(g => g.name === groupName)) groupName = `${importedGroup.name} (Imported ${nameCounter++})`;
-                            const newGroupId = generateId();
-                            appData.groups[newGroupId] = { id: newGroupId, name: groupName };
-                            Object.values(importedData.lists).forEach(l => { if (l.groupId === importedGroup.id) l.groupId = newGroupId; });
-                        });
+                    const data = JSON.parse(e.target.result);
+                    
+                    if (data.list) {
+                        // Single list import
+                        const newId = generateId();
+                        const list = { ...data.list, id: newId };
+                        
+                        // Ensure unique IDs for items
+                        if (list.items) {
+                            const newItems = {};
+                            Object.values(list.items).forEach(item => {
+                                const itemId = generateId();
+                                newItems[itemId] = { ...item, id: itemId };
+                            });
+                            list.items = newItems;
+                        }
+                        
+                        lists[newId] = list;
+                        alert('List imported successfully!');
+                    } else if (data.lists) {
+                        // Full backup import
+                        if (confirm('This will merge with your existing data. Continue?')) {
+                            Object.values(data.lists || {}).forEach(list => {
+                                const newId = generateId();
+                                lists[newId] = { ...list, id: newId };
+                            });
+                            
+                            Object.values(data.groups || {}).forEach(group => {
+                                const newId = generateId();
+                                groups[newId] = { ...group, id: newId };
+                            });
+                            
+                            alert('Data imported successfully!');
+                        }
                     }
                     
-                    Object.values(importedData.lists).forEach(importedList => {
-                        let listName = importedList.name;
-                        let nameCounter = 1;
-                        while(Object.values(appData.lists).some(l => l.name === listName)) listName = `${importedList.name} (Imported ${nameCounter++})`;
-                        const newListId = generateId();
-                        appData.lists[newListId] = { ...importedData.lists[importedList.id], id: newListId, name: listName }; // Corrected typo here
-                    });
-
                     saveData();
-                    renderUI();
-                    alert("Data imported successfully!");
+                    renderLists();
                 } catch (err) {
-                    alert("Import failed. The file is either corrupted or not a valid backup file.");
-                    console.error("Import Error:", err);
-                } finally {
-                    event.target.value = '';
+                    alert('Invalid file format');
                 }
             };
             reader.readAsText(file);
         }
-        
-        // --- Start the App ---
-        initialize();
-    });
+
+        function clearAllData() {
+            if (!confirm('This will permanently delete ALL your data. Are you sure?')) return;
+            if (!confirm('This action cannot be undone. Really delete everything?')) return;
+            
+            lists = {};
+            groups = {};
+            localStorage.removeItem('spendingTracker');
+            
+            currentListId = null;
+            backToLists();
+            renderLists();
+            alert('All data has been cleared');
+        }
     </script>
 </body>
 </html>
